@@ -2,7 +2,7 @@
 
 ;; Author: sogaiu
 ;; Version: 20190907
-;; Package-Requires: ((clojure-mode "5.11.0") (smartparens "1.11.0") (emacs "26.2"))
+;; Package-Requires: ((clojure-mode "5.11.0") (smartparens "1.11.0") (sesman "0.3.2") (emacs "26.2"))
 ;; Keywords: clojure, repl
 
 ;; This file is not part of GNU Emacs.
@@ -111,6 +111,7 @@
 (require 'ab)
 (require 'clojure-mode)
 (require 'comint)
+(require 'sesman)
 (require 'smartparens)
 (require 'subr-x)
 
@@ -143,12 +144,18 @@ Host and port should be delimited with ':'."
   :group 'acrepl)
 
 (defvar acrepl-repl-buffer-name "*acrepl-repl*"
-  "Name of repl buffer.")
+  "Base name of repl buffer.")
+
+(defun acrepl-relevant-buffer ()
+  "Return a relevant repl buffer."
+  ;; XXX: eventually deal with more than one
+  (let ((repl-buffers (cdr (sesman-current-session 'ACREPL))))
+    (car repl-buffers)))
 
 (defun acrepl-switch-to-repl ()
-  "Switch to the repl buffer named by `acrepl-repl-buffer-name`."
+  "Switch to a repl buffer."
   (interactive)
-  (pop-to-buffer acrepl-repl-buffer-name))
+  (pop-to-buffer (acrepl-relevant-buffer)))
 
 (defun acrepl-send-code (code-str)
   "Send CODE-STR.
@@ -157,9 +164,9 @@ CODE-STR should be a Clojure form."
   (interactive "sCode: ")
   (let ((here (point))
         (original-buffer (current-buffer))
-        (repl-buffer (get-buffer acrepl-repl-buffer-name)))
+        (repl-buffer (acrepl-relevant-buffer)))
     (if (not repl-buffer)
-        (message (format "%s is missing..." acrepl-repl-buffer-name))
+        (message (format "%s is missing..." (buffer-name repl-buffer)))
       ;; switch to acrepl buffer to prepare for appending
       (set-buffer repl-buffer)
       (goto-char (point-max))
@@ -178,9 +185,9 @@ and after the region about to be sent, respectively."
   (interactive "r")
   (let ((here (point))
         (original-buffer (current-buffer))
-        (repl-buffer (get-buffer acrepl-repl-buffer-name)))
+        (repl-buffer (acrepl-relevant-buffer)))
     (if (not repl-buffer)
-        (message (format "%s is missing..." acrepl-repl-buffer-name))
+        (message (format "%s is missing..." (buffer-name repl-buffer)))
       ;; switch to acrepl buffer to prepare for appending
       (set-buffer repl-buffer)
       (goto-char (point-max))
@@ -252,6 +259,24 @@ and after the region about to be sent, respectively."
   (interactive)
   (acrepl-load-file (buffer-file-name)))
 
+(cl-defmethod sesman-more-relevant-p ((_system (eql ACREPL)) session1 session2)
+  (sesman-more-recent-p (cdr session1) (cdr session2)))
+
+(cl-defmethod sesman-start-session ((_system (eql ACREPL)))
+  "Start an acrepl sesman session."
+  (call-interactively #'acrepl))
+
+(cl-defmethod sesman-quit-session ((_system (eql ACREPL)) session)
+  "Quit an acrepl sesman session."
+  (mapc (lambda (thing)
+          (when (bufferp thing)
+            (sesman-remove-object 'ACREPL session thing 'auto-unregister
+                                  'no-error)
+            (let ((repl-proc (get-buffer-process thing)))
+              (when (and repl-proc (process-live-p repl-proc))
+                (delete-process repl-proc)))))
+        (cdr session)))
+
 (defvar acrepl-interaction-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-a" 'acrepl-send-ascertained-region)
@@ -262,6 +287,7 @@ and after the region about to be sent, respectively."
     (define-key map "\C-c\C-l" 'acrepl-load-buffer-file)
     (define-key map "\C-c\C-r" 'acrepl-send-region)
     (define-key map "\C-c\C-z" 'acrepl-switch-to-repl)
+    (define-key map "\C-c\C-s" 'sesman-map)
     (easy-menu-define acrepl-interaction-mode-map map
       "A Clojure REPL Interaction Mode Menu"
       '("ACRepl"
@@ -288,6 +314,8 @@ and after the region about to be sent, respectively."
     map)
   "ACRepl mode map.")
 
+(sesman-install-menu acrepl-mode-map)
+
 (define-derived-mode acrepl-mode comint-mode "A Clojure REPL"
   "Major mode for acrepl.
 
@@ -297,9 +325,12 @@ and after the region about to be sent, respectively."
   (setq comint-prompt-regexp acrepl-prompt-regexp)
   (setq comint-prompt-read-only t)
   (setq mode-line-process '(":%s"))
+  (setq-local sesman-system 'ACREPL)
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
-       '(clojure-font-lock-keywords t)))
+       '(clojure-font-lock-keywords t))
+  ;; XXX: some things missing?
+  )
 
 ;;;###autoload
 (define-minor-mode acrepl-interaction-mode
@@ -309,7 +340,8 @@ The following keys are available in `acrepl-interaction-mode`:
 
 \\{acrepl-interaction-mode}"
 
-  nil " acrepl" acrepl-interaction-mode-map)
+  nil " acrepl" acrepl-interaction-mode-map
+  (setq-local sesman-system 'ACREPL))
 
 ;;; XXX: git-specific and works only for shadow-cljs
 (defun acrepl-guess-endpoint ()
@@ -327,6 +359,14 @@ The following keys are available in `acrepl-interaction-mode`:
             (when (> port 0)
               (format "localhost:%s" port))))))))
 
+(defun acrepl-make-session-name (host port)
+  "Create a unique-ish session name using HOST, PORT and other information."
+  (format "%s:%s:%s:%s"
+          (cdr (project-current))
+          host
+          port
+          (format-time-string "%Y-%m-%d_%H:%M:%S")))
+
 ;;;###autoload
 (defun acrepl (endpoint)
   "Start acrepl.
@@ -340,20 +380,32 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
       (read-string (format "REPL endpoint (default '%s'): " endpoint)
                    endpoint nil endpoint))))
   (unless
-      ;(ignore-errors ;; XXX: uncomment at some point...
-        (let* ((ep (split-string endpoint ":"))
-               (host (car ep))
-               (port (string-to-number (cadr ep))))
-          (message "Connecting to socket REPL on '%s:%d'..." host port)
-          (with-current-buffer (get-buffer-create acrepl-repl-buffer-name)
-            (prog1
-                (make-comint-in-buffer "acrepl" acrepl-repl-buffer-name
-                                       (cons host port))
-              (goto-char (point-max))
-              (acrepl-mode)
-              (pop-to-buffer (current-buffer))
-              (goto-char (point-max)))))
+      ;;(ignore-errors ;; XXX: uncomment at some point...
+      (let* ((ep (split-string endpoint ":"))
+             (host (car ep))
+             (port (string-to-number (cadr ep)))
+             (buffer (get-buffer-create
+                      (generate-new-buffer-name acrepl-repl-buffer-name)))
+             (repl-buffer-name (buffer-name buffer))
+             (ses-name (acrepl-make-session-name host port)))
+        (message "Connecting to socket REPL on '%s:%d'..." host port)
+        (with-current-buffer buffer
+          (prog1
+              (make-comint-in-buffer "acrepl" repl-buffer-name
+                                     (cons host port))
+            (sesman-add-object 'ACREPL ses-name buffer 'allow-new)
+            (goto-char (point-max))
+            (acrepl-mode)
+            (pop-to-buffer (current-buffer))
+            (goto-char (point-max)))))
     (message "Failed to connect to %s" endpoint)))
+
+;; XXX: what about clojurec-mode?
+(with-eval-after-load 'clojure-mode
+  (require 'sesman)
+  (sesman-install-menu clojure-mode-map)
+  (add-hook 'clojure-mode-hook
+            (lambda () (setq-local sesman-system 'ACREPL))))
 
 (provide 'acrepl)
 
