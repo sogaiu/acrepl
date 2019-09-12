@@ -112,6 +112,7 @@
 (require 'clojure-mode)
 (require 'comint)
 (require 'sesman)
+(require 'sesman-browser) ; XXX: how to remove
 (require 'smartparens)
 (require 'subr-x)
 
