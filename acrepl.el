@@ -314,7 +314,27 @@ and after the region about to be sent, respectively."
     map)
   "ACRepl mode map.")
 
-(sesman-install-menu acrepl-mode-map)
+(defvar acrepl-sesman-menu
+  '("Sesman"
+    ["Show Session Info" sesman-info]
+    "--"
+    ["Start" sesman-start]
+    ["Quit" sesman-quit
+     :active (sesman-current-session 'ACREPL)]
+    "--"
+    ["Link with Buffer" sesman-link-with-buffer
+     :active (sesman-current-session 'ACREPL)]
+    ["Link with Directory" sesman-link-with-directory
+     :active (sesman-current-session 'ACREPL)]
+    ["Link with Project" sesman-link-with-project
+     :active (sesman-current-session 'ACREPL)]
+    "--"
+    ["Unlink" sesman-unlink
+     :active (sesman-current-session 'ACREPL)]
+    "--"
+    ["Browser" sesman-browser
+     :active (sesman-current-session 'ACREPL)])
+  "Sesman Menu.")
 
 (define-derived-mode acrepl-mode comint-mode "A Clojure REPL"
   "Major mode for acrepl.
@@ -326,6 +346,8 @@ and after the region about to be sent, respectively."
   (setq comint-prompt-read-only t)
   (setq mode-line-process '(":%s"))
   (setq-local sesman-system 'ACREPL)
+  (setq-local sesman-menu acrepl-sesman-menu)
+  (sesman-install-menu acrepl-mode-map)
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
        '(clojure-font-lock-keywords t))
@@ -341,7 +363,9 @@ The following keys are available in `acrepl-interaction-mode`:
 \\{acrepl-interaction-mode}"
 
   nil " acrepl" acrepl-interaction-mode-map
-  (setq-local sesman-system 'ACREPL))
+  (setq-local sesman-system 'ACREPL)
+  (setq-local sesman-menu acrepl-sesman-menu)
+  (sesman-install-menu acrepl-interaction-mode-map))
 
 ;;; XXX: git-specific and works only for shadow-cljs
 (defun acrepl-guess-endpoint ()
@@ -399,13 +423,6 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
             (pop-to-buffer (current-buffer))
             (goto-char (point-max)))))
     (message "Failed to connect to %s" endpoint)))
-
-;; XXX: what about clojurec-mode?
-(with-eval-after-load 'clojure-mode
-  (require 'sesman)
-  (sesman-install-menu clojure-mode-map)
-  (add-hook 'clojure-mode-hook
-            (lambda () (setq-local sesman-system 'ACREPL))))
 
 (provide 'acrepl)
 
