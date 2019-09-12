@@ -2,7 +2,7 @@
 
 ;; Author: sogaiu
 ;; Version: 20190907
-;; Package-Requires: ((clojure-mode "5.11.0") (smartparens "1.11.0") (emacs "26.2"))
+;; Package-Requires: ((clojure-mode "5.11.0") (emacs "26.2"))
 ;; Keywords: clojure, repl
 
 ;; This file is not part of GNU Emacs.
@@ -20,7 +20,6 @@
 ;;
 ;;   ab.el -- should be included in the same repository
 ;;   clojure-mode
-;;   smartparens
 ;;
 ;;  and put this in your relevant init file:
 ;;
@@ -85,7 +84,6 @@
 ;;   monroe
 ;;   replique
 ;;   sesman
-;;   smartparens
 ;;
 ;; and transitively involved folks too ;)
 
@@ -111,7 +109,6 @@
 (require 'ab)
 (require 'clojure-mode)
 (require 'comint)
-(require 'smartparens)
 (require 'subr-x)
 
 ;;;; The Rest
@@ -227,21 +224,30 @@ Determination is based on `acrepl-ascertain-forms'."
   (interactive)
   (acrepl-send-region (point-min) (point-max)))
 
+;; XXX: experimental
+(defun acrepl-detect-clojure-sexp-bounds ()
+  "Return the bounds of the Clojure sexp at point."
+  (let ((here (point)))
+    (backward-sexp)
+    (let ((start (if (looking-back "\\(#[^#)]*\\)")
+                     (match-beginning 1)
+                   (point))))
+      (forward-sexp)
+      (let ((end (point)))
+        (goto-char here)
+        (list start end)))))
+
 (defun acrepl-send-expression-at-point ()
   "Send expression at point."
   (interactive)
-  (let* ((thing (sp-get-thing t))
-         (start (sp-get thing :beg))
-         (end (sp-get thing :end)))
+  (cl-destructuring-bind (start end) (acrepl-detect-clojure-sexp-bounds)
     (when (and start end)
       (acrepl-send-region start end))))
 
 (defun acrepl-tap-expression-at-point ()
   "Apply tap> to expression at point."
   (interactive)
-  (let* ((thing (sp-get-thing t))
-         (start (sp-get thing :beg))
-         (end (sp-get thing :end)))
+  (cl-destructuring-bind (start end) (acrepl-detect-clojure-sexp-bounds)
     (when (and start end)
       (acrepl-tap-region start end))))
 
