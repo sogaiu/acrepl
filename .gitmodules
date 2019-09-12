@@ -1,0 +1,3 @@
+[submodule "sesman"]
+	path = sesman
+	url = https://github.com/vspinu/sesman
