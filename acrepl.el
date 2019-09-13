@@ -107,7 +107,8 @@
 ;;;; Requirements
 
 (require 'ab)
-(require 'clojure-mode)
+;;(require 'clojure-mode)
+(require 'cljm-mode)
 (require 'comint)
 (require 'subr-x)
 
@@ -297,14 +298,14 @@ and after the region about to be sent, respectively."
   "Major mode for acrepl.
 
 \\{acrepl-mode-map}"
-  
-  :syntax-table clojure-mode-syntax-table
+
+  :syntax-table cljm-mode-syntax-table
   (setq comint-prompt-regexp acrepl-prompt-regexp)
   (setq comint-prompt-read-only t)
   (setq mode-line-process '(":%s"))
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
-       '(clojure-font-lock-keywords t)))
+       '(cljm-font-lock-keywords t)))
 
 ;;;###autoload
 (define-minor-mode acrepl-interaction-mode
