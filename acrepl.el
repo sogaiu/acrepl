@@ -140,12 +140,67 @@ Host and port should be delimited with ':'."
   :group 'acrepl)
 
 (defvar acrepl-repl-buffer-name "*acrepl-repl*"
-  "Name of repl buffer.")
+  "Base name of repl buffer.")
+
+(defvar acrepl-sessions
+  (make-hash-table :test #'equal)
+  "Hash table of acrepl sessions.")
+
+(defvar-local acrepl-session-name nil
+  "Current session name.")
+
+(defun acrepl-get-session (name)
+  "Get session named NAME."
+  (gethash name acrepl-sessions))
+
+(defun acrepl-session-names ()
+  "Return list of session names."
+  (let ((names '()))
+    (maphash (lambda (k v)
+               (push k names))
+             acrepl-sessions)
+    names))
+
+(defun acrepl-switch-session (name)
+  "Switch to session named NAME."
+  (interactive
+   (list (completing-read "Session: "
+                          (acrepl-session-names))))
+  (when name
+    (let ((session (gethash name acrepl-sessions)))
+      (when session
+        (setq acrepl-session-name name)
+        session))))
+
+(defun acrepl-current-session ()
+  "Return current session."
+  (let ((session (acrepl-get-session acrepl-session-name)))
+    (if session
+        session
+      (message "No session detected.")
+      (sleep-for 2)
+      (let ((switched-session (call-interactively #'acrepl-switch-session)))
+        (message "session: '%s'" switched-session)
+        (if switched-session
+            switched-session
+          (message "No session chosen.  Try M-x acrepl?")
+          (sleep-for 2)
+          nil)))))
+
+(defun acrepl-relevant-buffer ()
+  "Return a relevant repl buffer."
+  (let ((session (acrepl-current-session)))
+    (when session
+      (cdr session))))
+
+(defun acrepl-remember-session (name session)
+  "Remember SESSION named NAME."
+  (puthash name session acrepl-sessions))
 
 (defun acrepl-switch-to-repl ()
-  "Switch to the repl buffer named by `acrepl-repl-buffer-name`."
+  "Switch to a repl buffer."
   (interactive)
-  (pop-to-buffer acrepl-repl-buffer-name))
+  (pop-to-buffer (acrepl-relevant-buffer)))
 
 (defun acrepl-send-code (code-str)
   "Send CODE-STR.
@@ -154,9 +209,9 @@ CODE-STR should be a Clojure form."
   (interactive "sCode: ")
   (let ((here (point))
         (original-buffer (current-buffer))
-        (repl-buffer (get-buffer acrepl-repl-buffer-name)))
+        (repl-buffer (acrepl-relevant-buffer)))
     (if (not repl-buffer)
-        (message (format "%s is missing..." acrepl-repl-buffer-name))
+        (message (format "%s is missing..." (buffer-name repl-buffer)))
       ;; switch to acrepl buffer to prepare for appending
       (set-buffer repl-buffer)
       (goto-char (point-max))
@@ -248,10 +303,12 @@ Determination is based on `acrepl-ascertain-forms'."
     (define-key map "\C-c\C-a" 'acrepl-send-ascertained-region)
     (define-key map "\C-c\C-b" 'acrepl-send-buffer)
     (define-key map "\C-c\C-e" 'acrepl-send-expression-at-point)
-    (define-key map "\C-c\C-t" 'acrepl-tap-expression-at-point)
     (define-key map "\C-c\C-i" 'acrepl-load-file)
     (define-key map "\C-c\C-l" 'acrepl-load-buffer-file)
     (define-key map "\C-c\C-r" 'acrepl-send-region)
+    (define-key map "\C-c\C-t" 'acrepl-tap-expression-at-point)
+    (define-key map "\C-c\C-x" 'acrepl-switch-session)
+    (define-key map "\C-c\C-y" 'acrepl)
     (define-key map "\C-c\C-z" 'acrepl-switch-to-repl)
     (easy-menu-define acrepl-interaction-mode-map map
       "A Clojure REPL Interaction Mode Menu"
@@ -264,6 +321,9 @@ Determination is based on `acrepl-ascertain-forms'."
         "--"
         ["Load buffer file" acrepl-load-buffer-file t]
         ["Load file" acrepl-load-file t]
+        "--"
+        ["Start Session" acrepl t]
+        ["Switch Session" acrepl-switch-session t]
         "--"
         ["Switch to REPL" acrepl-switch-to-repl t]))
     map)
@@ -318,6 +378,14 @@ The following keys are available in `acrepl-interaction-mode`:
             (when (> port 0)
               (format "localhost:%s" port))))))))
 
+(defun acrepl-make-session-name (host port)
+  "Create a unique-ish session name using HOST, PORT and other information."
+  (format "%s:%s:%s:%s"
+          (cdr (project-current))
+          host
+          port
+          (format-time-string "%Y-%m-%d_%H:%M:%S")))
+
 ;;;###autoload
 (defun acrepl (endpoint)
   "Start acrepl.
@@ -331,19 +399,25 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
       (read-string (format "REPL endpoint (default '%s'): " endpoint)
                    endpoint nil endpoint))))
   (unless
-      ;(ignore-errors ;; XXX: uncomment at some point...
-        (let* ((ep (split-string endpoint ":"))
-               (host (car ep))
-               (port (string-to-number (cadr ep))))
-          (message "Connecting to socket REPL on '%s:%d'..." host port)
-          (with-current-buffer (get-buffer-create acrepl-repl-buffer-name)
-            (prog1
-                (make-comint-in-buffer "acrepl" acrepl-repl-buffer-name
-                                       (cons host port))
-              (goto-char (point-max))
-              (acrepl-mode)
-              (pop-to-buffer (current-buffer))
-              (goto-char (point-max)))))
+      ;;(ignore-errors ;; XXX: uncomment at some point...
+      (let* ((ep (split-string endpoint ":"))
+             (host (car ep))
+             (port (string-to-number (cadr ep)))
+             (buffer (get-buffer-create
+                      (generate-new-buffer-name acrepl-repl-buffer-name)))
+             (repl-buffer-name (buffer-name buffer))
+             (ses-name (acrepl-make-session-name host port)))
+        (message "Connecting to socket REPL on '%s:%d'..." host port)
+        (setq acrepl-session-name ses-name)
+        (with-current-buffer buffer
+          (prog1
+              (make-comint-in-buffer "acrepl" repl-buffer-name
+                                     (cons host port))
+            (acrepl-remember-session ses-name (cons ses-name buffer))
+            (goto-char (point-max))
+            (acrepl-mode)
+            (pop-to-buffer (current-buffer))
+            (goto-char (point-max)))))
     (message "Failed to connect to %s" endpoint)))
 
 (provide 'acrepl)
