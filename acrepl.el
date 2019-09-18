@@ -167,36 +167,17 @@ CODE-STR should be a Clojure form."
           (goto-char (point-max))
         (goto-char here)))))
 
-(defun acrepl-send-region (start end &optional pre post)
-  "Send a region bounded by START and END.
-
-Optional arguments PRE and POST are strings to insert before
-and after the region about to be sent, respectively."
+(defun acrepl-send-region (start end)
+  "Send a region bounded by START and END."
   (interactive "r")
-  (let ((here (point))
-        (original-buffer (current-buffer))
-        (repl-buffer (get-buffer acrepl-repl-buffer-name)))
-    (if (not repl-buffer)
-        (message (format "%s is missing..." acrepl-repl-buffer-name))
-      ;; switch to acrepl buffer to prepare for appending
-      (set-buffer repl-buffer)
-      (goto-char (point-max))
-      (when pre
-        (insert pre))
-      ;; switch back
-      (set-buffer original-buffer)
-      (append-to-buffer repl-buffer start end)
-      (set-buffer repl-buffer)
-      (when post
-        (insert post))
-      (comint-send-input)
-      (set-buffer original-buffer)
-      (goto-char here))))
+  (acrepl-send-code (buffer-substring-no-properties start end)))
 
 (defun acrepl-tap-region (start end)
   "Apply tap> to a region bounded by START and END."
   (interactive "r")
-  (acrepl-send-region start end "(tap> " ")"))
+  (acrepl-send-code (concat "(tap> "
+                            (buffer-substring-no-properties start end)
+                            ")")))
 
 (defun acrepl-send-ascertained-region ()
   "Send a region ascertained around point."
