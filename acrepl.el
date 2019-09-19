@@ -16,9 +16,8 @@
 ;;;;; Manual
 
 ;; Ensure this file and the following dependencies (and their
-;; dependencies) are in your load-path:
+;; dependencies, etc.) are in your load-path:
 ;;
-;;   ab.el -- should be included in the same repository
 ;;   clojure-mode
 ;;
 ;;  and put this in your relevant init file:
@@ -27,6 +26,7 @@
 ;;
 ;;  Optionally, add:
 ;;
+;;    (require 'acrepl-interaction)
 ;;    (add-hook 'clojure-mode-hook
 ;;              #'acrepl-interaction-mode)
 ;;
@@ -44,7 +44,7 @@
 ;;
 ;;    N.B. for shadow-cljs', the info may be autodetected
 
-;; 1. Connect to the socket repl by:
+;; 1. While visitng a buffer with Clojure code, connect to a socket repl by:
 ;;
 ;;      M-x acrepl
 ;;
@@ -60,18 +60,18 @@
 ;;
 ;;      M-x acrepl-interaction-mode
 ;;
-;;    There should be a ACRepl menu containing some convenience commands:
+;;    There should be a ACRepl menu containing some convenience
+;;    commands related to sending to the repl, loading files, etc.
 ;;
-;;      Send ascertained region
-;;      Send buffer
-;;      Send expression at point
-;;      Send region
-;;      tap> expression at point
+;;    How featureful this ends up being can be controlled via:
 ;;
-;;      Load buffer file
-;;      Load file
+;;      (setq acrepl-interaction-menu-feature-level 0) ; default, simple
 ;;
-;;      Switch to REPL
+;;    or:
+;;
+;;      (setq acrepl-interaction-menu-feature-level 1) ; gimme moar!
+;;
+;;    N.B. (require 'acrepl-interaction) is necessary.
 
 ;;;;; Acknowledgments
 
@@ -106,7 +106,6 @@
 
 ;;;; Requirements
 
-(require 'ab)
 (require 'clojure-mode)
 (require 'comint)
 (require 'subr-x)
@@ -196,154 +195,21 @@ Host and port should be delimited with ':'."
   (puthash name connection acrepl-connections))
 
 (defun acrepl-switch-to-repl ()
-  "Switch to a repl buffer."
+  "Try to switch to a relevant repl buffer."
   (interactive)
   (let ((repl-buffer (acrepl-guess-repl-buffer)))
     (if (not repl-buffer)
         (error "Did not find repl buffer.  May be no connection?")
       (pop-to-buffer repl-buffer))))
 
-(defun acrepl-send-code (code-str)
-  "Send CODE-STR.
-CODE-STR should be a Clojure form."
-  (interactive "sCode: ")
-  (let ((repl-buffer (acrepl-guess-repl-buffer)))
-    (if (not repl-buffer)
-        (error "Did not find repl buffer.  May be no connection?")
-      (let ((here (point))
-            (original-buffer (current-buffer)))
-        ;; switch to acrepl buffer to prepare for appending
-        (set-buffer repl-buffer)
-        (goto-char (point-max))
-        (insert code-str)
-        (comint-send-input)
-        (set-buffer original-buffer)
-        (if (eq original-buffer repl-buffer)
-            (goto-char (point-max))
-          (goto-char here))))))
-
-(defun acrepl-send-region (start end)
-  "Send a region bounded by START and END."
-  (interactive "r")
-  (acrepl-send-code (buffer-substring-no-properties start end)))
-
-(defun acrepl-tap-region (start end)
-  "Apply tap> to a region bounded by START and END."
-  (interactive "r")
-  (acrepl-send-code (concat "(tap> "
-                            (buffer-substring-no-properties start end)
-                            ")")))
-
-(defvar acrepl-ascertain-forms
-  (list 'def
-        'defn
-        'defn-
-        'defmacro
-        'ns
-        'require)
-  "List of symbols used by `acrepl-send-ascertained-region'.")
-
-(defun acrepl-send-ascertained-region ()
-  "Send a region ascertained around point.
-Determination is based on `acrepl-ascertain-forms'."
-  (interactive)
-  (condition-case err
-      (cl-destructuring-bind (start end) (ab-sexp-bounds acrepl-ascertain-forms)
-        (acrepl-send-region start end))
-    (wrong-number-of-arguments
-     (message "Failed to find containing def* form."))
-    (error
-     (message "Error: %s %s" (car err) (cdr err)))))
-
-(defun acrepl-send-buffer ()
-  "Send buffer content."
-  (interactive)
-  (acrepl-send-region (point-min) (point-max)))
-
-;; XXX: experimental
-(defun acrepl-detect-clojure-sexp-bounds ()
-  "Return the bounds of the Clojure sexp at point."
-  (let ((here (point)))
-    (backward-sexp)
-    (let ((start (if (looking-back "\\(#[^#)]*\\)")
-                     (match-beginning 1)
-                   (point))))
-      (forward-sexp)
-      (let ((end (point)))
-        (goto-char here)
-        (list start end)))))
-
-(defun acrepl-send-expression-at-point ()
-  "Send expression at point."
-  (interactive)
-  (cl-destructuring-bind (start end) (acrepl-detect-clojure-sexp-bounds)
-    (when (and start end)
-      (acrepl-send-region start end))))
-
-(defun acrepl-tap-expression-at-point ()
-  "Apply tap> to expression at point."
-  (interactive)
-  (cl-destructuring-bind (start end) (acrepl-detect-clojure-sexp-bounds)
-    (when (and start end)
-      (acrepl-tap-region start end))))
-
-(defun acrepl-load-file (filename)
-  "Send the `load-file` form with full path of FILENAME."
-  (interactive "fFile name: ")
-  (acrepl-send-code (format "(load-file \"%s\")"
-                            (expand-file-name filename))))
-
-(defun acrepl-load-buffer-file ()
-  "Send the `load-file` form with buffer's full path."
-  (interactive)
-  (acrepl-load-file (buffer-file-name)))
-
-(defvar acrepl-interaction-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-a" 'acrepl-send-ascertained-region)
-    (define-key map "\C-c\C-b" 'acrepl-send-buffer)
-    (define-key map "\C-c\C-e" 'acrepl-send-expression-at-point)
-    (define-key map "\C-c\C-i" 'acrepl-load-file)
-    (define-key map "\C-c\C-l" 'acrepl-load-buffer-file)
-    (define-key map "\C-c\C-r" 'acrepl-send-region)
-    (define-key map "\C-c\C-t" 'acrepl-tap-expression-at-point)
-    (define-key map "\C-c\C-x" 'acrepl-set-connection)
-    (define-key map "\C-c\C-y" 'acrepl)
-    (define-key map "\C-c\C-z" 'acrepl-switch-to-repl)
-    (easy-menu-define acrepl-interaction-mode-map map
-      "A Clojure REPL Interaction Mode Menu"
-      '("ACRepl"
-        ["Send ascertained region" acrepl-send-ascertained-region t]
-        ["Send buffer" acrepl-send-buffer t]
-        ["Send expression at point" acrepl-send-expression-at-point t]
-        ["Send region" acrepl-send-region t]
-        ["tap> expression at point" acrepl-tap-expression-at-point t]
-        "--"
-        ["Load buffer file" acrepl-load-buffer-file t]
-        ["Load file" acrepl-load-file t]
-        "--"
-        ["New Connection" acrepl t]
-        ["Set Connection" acrepl-set-connection t]
-        "--"
-        ["Switch to REPL" acrepl-switch-to-repl t]))
-    map)
-  "ACRepl interaction mode map.")
-
 (defvar acrepl-mode-map
   (let ((map (copy-keymap comint-mode-map)))
-        (define-key map "\C-c\C-i" 'acrepl-load-file)
-        (easy-menu-define acrepl-mode-map map
-          "A Clojure REPL Mode Menu"
-          '("ACRepl"
-            ["Load file" acrepl-load-file t]))
     map)
   "ACRepl mode map.")
 
 (define-derived-mode acrepl-mode comint-mode "A Clojure REPL"
   "Major mode for acrepl.
-
 \\{acrepl-mode-map}"
-  
   :syntax-table clojure-mode-syntax-table
   (setq comint-prompt-regexp acrepl-prompt-regexp)
   (setq comint-prompt-read-only t)
@@ -351,14 +217,6 @@ Determination is based on `acrepl-ascertain-forms'."
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
        '(clojure-font-lock-keywords t)))
-
-;;;###autoload
-(define-minor-mode acrepl-interaction-mode
-  "Minor mode for acrepl interaction from a Clojure buffer.
-The following keys are available in `acrepl-interaction-mode`:
-\\{acrepl-interaction-mode}"
-
-  nil " acrepl" acrepl-interaction-mode-map)
 
 ;;; XXX: git-specific and works only for shadow-cljs
 (defun acrepl-guess-endpoint ()
@@ -375,14 +233,6 @@ The following keys are available in `acrepl-interaction-mode`:
                          (buffer-string)))))
             (when (> port 0)
               (format "localhost:%s" port))))))))
-
-(defun acrepl-make-connection-name (host port)
-  "Create a unique-ish connection name using HOST, PORT and other information."
-  (format "%s:%s:%s:%s"
-          host
-          port
-          (cdr (project-current))
-          (format-time-string "%Y-%m-%d_%H:%M:%S")))
 
 (defvar acrepl-conn-counter 0
   "Number of connections made so far.")
