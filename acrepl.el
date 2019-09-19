@@ -134,93 +134,93 @@
 
 (defcustom acrepl-default-endpoint "localhost:23579"
   "Default host and port to connect to.
-
 Host and port should be delimited with ':'."
   :type 'string
   :group 'acrepl)
 
-(defvar acrepl-repl-buffer-name "*acrepl-repl*"
-  "Base name of repl buffer.")
-
-(defvar acrepl-sessions
+(defvar acrepl-connections
   (make-hash-table :test #'equal)
-  "Hash table of acrepl sessions.")
+  "Hash table of acrepl connections.")
 
-(defvar-local acrepl-session-name nil
-  "Current session name.")
+(defvar-local acrepl-connection-name nil
+  "Current connection name.")
 
-(defun acrepl-get-session (name)
-  "Get session named NAME."
-  (gethash name acrepl-sessions))
+(defun acrepl-make-conn-desc (host port path ts repl-buffer)
+  "Create connection descriptor from HOST, PORT, PATH, TS, and REPL-BUFFER."
+  (list
+   (cons 'host host)
+   (cons 'port port)
+   (cons 'path path)
+   (cons 'ts ts)
+   (cons 'repl-buffer repl-buffer)))
 
-(defun acrepl-session-names ()
-  "Return list of session names."
+(defun acrepl-get-connection (name)
+  "Get connection named NAME."
+  (gethash name acrepl-connections))
+
+(defun acrepl-connection-names ()
+  "Return list of connection names."
   (let ((names '()))
     (maphash (lambda (k v)
                (push k names))
-             acrepl-sessions)
+             acrepl-connections)
     names))
 
-(defun acrepl-switch-session (name)
-  "Switch to session named NAME."
+(defun acrepl-set-connection (name)
+  "Set current connection to the one named NAME."
   (interactive
-   (list (completing-read "Session: "
-                          (acrepl-session-names))))
-  (when name
-    (let ((session (gethash name acrepl-sessions)))
-      (when session
-        (setq acrepl-session-name name)
-        session))))
+   (let ((input (completing-read "Connection: "
+                                 (acrepl-connection-names)
+                                 nil
+                                 "confirm")))
+     (if (equal input "")
+       (user-error "No connection specified")
+       (list input))))
+  (let ((conn (gethash name acrepl-connections)))
+    (when conn
+      (setq acrepl-connection-name name)
+      conn)))
 
-(defun acrepl-current-session ()
-  "Return current session."
-  (let ((session (acrepl-get-session acrepl-session-name)))
-    (if session
-        session
-      (message "No session detected.")
-      (sleep-for 2)
-      (let ((switched-session (call-interactively #'acrepl-switch-session)))
-        (message "session: '%s'" switched-session)
-        (if switched-session
-            switched-session
-          (message "No session chosen.  Try M-x acrepl?")
-          (sleep-for 2)
-          nil)))))
+(defun acrepl-current-connection ()
+  "Return current connection, if any."
+  (acrepl-get-connection acrepl-connection-name))
 
-(defun acrepl-relevant-buffer ()
+(defun acrepl-guess-repl-buffer ()
   "Return a relevant repl buffer."
-  (let ((session (acrepl-current-session)))
-    (when session
-      (cdr session))))
+  (let ((conn (acrepl-current-connection)))
+    (when conn
+      (alist-get 'repl-buffer conn)))) ; XXX: checking?
 
-(defun acrepl-remember-session (name session)
-  "Remember SESSION named NAME."
-  (puthash name session acrepl-sessions))
+(defun acrepl-remember-connection (name connection)
+  "Remember CONNECTION named NAME."
+  (puthash name connection acrepl-connections))
 
 (defun acrepl-switch-to-repl ()
   "Switch to a repl buffer."
   (interactive)
-  (pop-to-buffer (acrepl-relevant-buffer)))
+  (let ((repl-buffer (acrepl-guess-repl-buffer)))
+    (if (not repl-buffer)
+        (error "Did not find repl buffer.  May be no connection?")
+      (pop-to-buffer repl-buffer))))
 
 (defun acrepl-send-code (code-str)
   "Send CODE-STR.
-
 CODE-STR should be a Clojure form."
   (interactive "sCode: ")
-  (let ((here (point))
-        (original-buffer (current-buffer))
-        (repl-buffer (acrepl-relevant-buffer)))
+  (let ((repl-buffer (acrepl-guess-repl-buffer)))
     (if (not repl-buffer)
-        (message (format "%s is missing..." (buffer-name repl-buffer)))
-      ;; switch to acrepl buffer to prepare for appending
-      (set-buffer repl-buffer)
-      (goto-char (point-max))
-      (insert code-str)
-      (comint-send-input)
-      (set-buffer original-buffer)
-      (if (eq original-buffer repl-buffer)
-          (goto-char (point-max))
-        (goto-char here)))))
+        (error "Did not find repl buffer.  May be no connection?")
+      (let ((here (point))
+            (original-buffer (current-buffer)))
+        ;; switch to acrepl buffer to prepare for appending
+        (set-buffer repl-buffer)
+        (goto-char (point-max))
+        (insert code-str)
+        (comint-send-input)
+        (set-buffer original-buffer)
+        (if (eq original-buffer repl-buffer)
+            (goto-char (point-max))
+          (goto-char here))))))
 
 (defun acrepl-send-region (start end)
   "Send a region bounded by START and END."
@@ -307,7 +307,7 @@ Determination is based on `acrepl-ascertain-forms'."
     (define-key map "\C-c\C-l" 'acrepl-load-buffer-file)
     (define-key map "\C-c\C-r" 'acrepl-send-region)
     (define-key map "\C-c\C-t" 'acrepl-tap-expression-at-point)
-    (define-key map "\C-c\C-x" 'acrepl-switch-session)
+    (define-key map "\C-c\C-x" 'acrepl-set-connection)
     (define-key map "\C-c\C-y" 'acrepl)
     (define-key map "\C-c\C-z" 'acrepl-switch-to-repl)
     (easy-menu-define acrepl-interaction-mode-map map
@@ -322,8 +322,8 @@ Determination is based on `acrepl-ascertain-forms'."
         ["Load buffer file" acrepl-load-buffer-file t]
         ["Load file" acrepl-load-file t]
         "--"
-        ["Start Session" acrepl t]
-        ["Switch Session" acrepl-switch-session t]
+        ["New Connection" acrepl t]
+        ["Set Connection" acrepl-set-connection t]
         "--"
         ["Switch to REPL" acrepl-switch-to-repl t]))
     map)
@@ -355,9 +355,7 @@ Determination is based on `acrepl-ascertain-forms'."
 ;;;###autoload
 (define-minor-mode acrepl-interaction-mode
   "Minor mode for acrepl interaction from a Clojure buffer.
-
 The following keys are available in `acrepl-interaction-mode`:
-
 \\{acrepl-interaction-mode}"
 
   nil " acrepl" acrepl-interaction-mode-map)
@@ -378,46 +376,69 @@ The following keys are available in `acrepl-interaction-mode`:
             (when (> port 0)
               (format "localhost:%s" port))))))))
 
-(defun acrepl-make-session-name (host port)
-  "Create a unique-ish session name using HOST, PORT and other information."
+(defun acrepl-make-connection-name (host port)
+  "Create a unique-ish connection name using HOST, PORT and other information."
   (format "%s:%s:%s:%s"
-          (cdr (project-current))
           host
           port
+          (cdr (project-current))
           (format-time-string "%Y-%m-%d_%H:%M:%S")))
+
+(defvar acrepl-conn-counter 0
+  "Number of connections made so far.")
+
+(defun acrepl-make-buffer-name (path port)
+  "Create a unique-ish repl buffer name using PATH, PORT and other info."
+  (string-match ".*/\\([^/]+\\)/\\([^/]+\\)$" path)
+  ;; XXX: checking?
+  (let ((dir-name (match-string 1 path))
+        (file-name (match-string 2 path)))
+    (setq acrepl-conn-counter (1+ acrepl-conn-counter))
+    (format "[%s]*%s/%s*[%s]"
+            acrepl-conn-counter
+            (substring dir-name 0 (min 3 (length dir-name)))
+            file-name
+            port)))
 
 ;;;###autoload
 (defun acrepl (endpoint)
   "Start acrepl.
-
 Query user for ENDPOINT which specifies the Clojure socket REPL
 endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
   (interactive
-   (let ((endpoint (or (acrepl-guess-endpoint)
-                       acrepl-default-endpoint)))
-     (list
-      (read-string (format "REPL endpoint (default '%s'): " endpoint)
-                   endpoint nil endpoint))))
+   (if (not (buffer-file-name)) ; XXX: loose
+       (user-error "Please invoke when visiting a Clojure file")
+     (let ((endpoint (or (acrepl-guess-endpoint)
+                         acrepl-default-endpoint)))
+       (list
+        (read-string (format "REPL endpoint (default '%s'): " endpoint)
+                     endpoint nil endpoint)))))
   (unless
       ;;(ignore-errors ;; XXX: uncomment at some point...
       (let* ((ep (split-string endpoint ":"))
              (host (car ep))
              (port (string-to-number (cadr ep)))
-             (buffer (get-buffer-create
-                      (generate-new-buffer-name acrepl-repl-buffer-name)))
-             (repl-buffer-name (buffer-name buffer))
-             (ses-name (acrepl-make-session-name host port)))
+             (file-buffer (current-buffer))
+             (file-path (buffer-file-name))
+             (repl-buffer (get-buffer-create
+                           (acrepl-make-buffer-name file-path port)))
+             (repl-buffer-name (buffer-name repl-buffer))
+             (conn-name repl-buffer-name)
+             (conn-desc
+              (acrepl-make-conn-desc host port file-path
+                                     (format-time-string "%Y-%m-%d_%H:%M:%S")
+                                     repl-buffer)))
         (message "Connecting to socket REPL on '%s:%d'..." host port)
-        (setq acrepl-session-name ses-name)
-        (with-current-buffer buffer
+        (setq acrepl-connection-name conn-name)
+        (with-current-buffer repl-buffer
           (prog1
               (make-comint-in-buffer "acrepl" repl-buffer-name
                                      (cons host port))
-            (acrepl-remember-session ses-name (cons ses-name buffer))
-            (goto-char (point-max))
+            (acrepl-remember-connection conn-name conn-desc)
             (acrepl-mode)
             (pop-to-buffer (current-buffer))
-            (goto-char (point-max)))))
+            (goto-char (point-max))
+            (pop-to-buffer file-buffer))))
     (message "Failed to connect to %s" endpoint)))
 
 (provide 'acrepl)
