@@ -38,6 +38,7 @@ Influenced by `acrepl-interaction-menu-feature-level`."
             "--"
             ["New Connection" acrepl t]
             ["Set Connection" acrepl-set-connection t]
+            ["Reconnect" acrepl-reconnect t]
             "--"
             ["Switch to REPL" acrepl-switch-to-repl t]))
       ;; moar features!
