@@ -21,9 +21,10 @@ Host and port should be delimited with ':'."
 (defvar-local acrepl-connection-name nil
   "Current connection name.")
 
-(defun acrepl-make-conn-desc (host port path ts repl-buffer)
-  "Create connection descriptor from HOST, PORT, PATH, TS, and REPL-BUFFER."
+(defun acrepl-make-conn-desc (name host port path ts repl-buffer)
+  "Create conn descriptor from NAME, HOST, PORT, PATH, TS, and REPL-BUFFER."
   (list
+   (cons 'name name)
    (cons 'host host)
    (cons 'port port)
    (cons 'path path)
@@ -117,17 +118,20 @@ Host and port should be delimited with ':'."
   
 (defun acrepl-connect (conn-desc)
   "Try to connect using CONN-DESC."
-  (let* ((host (alist-get 'host conn-desc))
+  (let* ((name (alist-get 'name conn-desc))
+         (host (alist-get 'host conn-desc))
          (port (alist-get 'port conn-desc))
          (repl-buffer (alist-get 'repl-buffer conn-desc))
          (repl-buffer-name (buffer-name repl-buffer))
          (repl-process-name repl-buffer-name))
     (message "Connecting to socket REPL on '%s:%d'..." host port)
-    (let ((buffer (make-comint-in-buffer repl-process-name repl-buffer-name
-                    (cons host port))))
-      (if (not buffer)
+    (if (not (buffer-live-p repl-buffer))
+      (error "Buffer not alive? %S" name)
+      (let ((buffer (make-comint-in-buffer repl-process-name repl-buffer-name
+                      (cons host port))))
+        (if (not buffer)
           (error "Failed to connect to %s:%d"  host port)
-        buffer))))
+          buffer)))))
 
 (defun acrepl-reconnect (name)
   "Try to connect to connection named NAME.

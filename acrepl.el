@@ -188,7 +188,7 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
          (repl-buffer-name (buffer-name repl-buffer))
          (conn-name repl-buffer-name)
          (conn-desc
-          (acrepl-make-conn-desc host port file-path
+          (acrepl-make-conn-desc conn-name host port file-path
                                  (format-time-string "%Y-%m-%d_%H:%M:%S")
                                  repl-buffer)))
     (setq acrepl-connection-name conn-name)
