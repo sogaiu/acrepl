@@ -6,6 +6,7 @@
 
 ;;;; Requirements
 
+(require 'filenotify)
 (require 'rx)
 
 (defcustom acrepl-default-endpoint "localhost:23579"
@@ -72,9 +73,33 @@ Host and port should be delimited with ':'."
   (let ((closest-dot-git-parent
          (locate-dominating-file default-directory ".git")))
     (when closest-dot-git-parent
-      (let ((socket-repl-port-file (concat closest-dot-git-parent
-                                           ".shadow-cljs/socket-repl.port")))
+      (let* ((dot-shadow-cljs-dir (concat closest-dot-git-parent
+                                    ".shadow-cljs"))
+             (socket-repl-port-file (concat dot-shadow-cljs-dir
+                                      "/socket-repl.port")))
         (when (file-exists-p socket-repl-port-file)
+          ;; XXX: still needs work
+          (file-notify-add-watch dot-shadow-cljs-dir (list 'change)
+            (lambda (event)
+              ;; actions: created, changed, deleted, stopped
+              (let ((action (nth 1 event))
+                    (file (nth 2 event)))
+                (if (and (string-equal (expand-file-name file)
+                            (expand-file-name socket-repl-port-file))
+                      (equal action 'changed))
+                  (let ((sc-port (string-to-number
+                                   (with-temp-buffer
+                                     (insert-file-contents file)
+                                     (buffer-string)))))
+                    (maphash (lambda (name conn)
+                               (let ((host (alist-get 'host conn))
+                                     (port (alist-get 'port conn)))
+                                 ;; XXX: may need more tweaking
+                                 (when (or (string-equal host "localhost")
+                                         (string-equal host "127.0.0.1"))
+                                   (when (= sc-port port)
+                                     (acrepl-connect conn)))))
+                      acrepl-connections))))))
           (let ((port (string-to-number
                        (with-temp-buffer
                          (insert-file-contents socket-repl-port-file)
