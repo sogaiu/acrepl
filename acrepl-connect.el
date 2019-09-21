@@ -91,15 +91,24 @@ Host and port should be delimited with ':'."
                                    (with-temp-buffer
                                      (insert-file-contents file)
                                      (buffer-string)))))
-                    (maphash (lambda (name conn)
-                               (let ((host (alist-get 'host conn))
-                                     (port (alist-get 'port conn)))
-                                 ;; XXX: may need more tweaking
-                                 (when (or (string-equal host "localhost")
-                                         (string-equal host "127.0.0.1"))
-                                   (when (= sc-port port)
-                                     (acrepl-connect conn)))))
-                      acrepl-connections))))))
+                    (mapc
+                      (lambda (buffer)
+                        (when (buffer-live-p buffer)
+                          (with-current-buffer buffer
+                            (let ((conn-name acrepl-connection-name))
+                              (when conn-name
+                                (let ((conn (acrepl-get-connection conn-name)))
+                                  (when conn
+                                    (let ((host (alist-get 'host conn))
+                                          (port (alist-get 'port conn)))
+                                      ;; XXX: may need more tweaking
+                                      (when (or (string-equal host "localhost")
+                                              (string-equal host "127.0.0.1")
+                                              (string-equal host "::1"))
+                                        (when (= sc-port port)
+                                          (acrepl-connect conn)))))))))))
+                          ;; XXX: track relevant buffers for efficiency?
+                          (buffer-list)))))))
           (let ((port (string-to-number
                        (with-temp-buffer
                          (insert-file-contents socket-repl-port-file)
