@@ -6,7 +6,6 @@
 
 ;;;; Requirements
 
-(require 'filenotify)
 (require 'rx)
 
 (defcustom acrepl-default-endpoint "localhost:23579"
@@ -66,55 +65,6 @@ Host and port should be delimited with ':'."
 (defun acrepl-remember-connection (name connection)
   "Remember CONNECTION named NAME."
   (puthash name connection acrepl-connections))
-
-;;; XXX: git-specific and works only for shadow-cljs
-(defun acrepl-guess-endpoint ()
-  "Guess an endpoint."
-  (let ((closest-dot-git-parent
-         (locate-dominating-file default-directory ".git")))
-    (when closest-dot-git-parent
-      (let* ((dot-shadow-cljs-dir (concat closest-dot-git-parent
-                                    ".shadow-cljs"))
-             (socket-repl-port-file (concat dot-shadow-cljs-dir
-                                      "/socket-repl.port")))
-        (when (file-exists-p socket-repl-port-file)
-          ;; XXX: still needs work
-          (file-notify-add-watch dot-shadow-cljs-dir (list 'change)
-            (lambda (event)
-              ;; actions: created, changed, deleted, stopped
-              (let ((action (nth 1 event))
-                    (file (nth 2 event)))
-                (if (and (string-equal (expand-file-name file)
-                            (expand-file-name socket-repl-port-file))
-                      (equal action 'changed))
-                  (let ((sc-port (string-to-number
-                                   (with-temp-buffer
-                                     (insert-file-contents file)
-                                     (buffer-string)))))
-                    (mapc
-                      (lambda (buffer)
-                        (when (buffer-live-p buffer)
-                          (with-current-buffer buffer
-                            (let ((conn-name acrepl-connection-name))
-                              (when conn-name
-                                (let ((conn (acrepl-get-connection conn-name)))
-                                  (when conn
-                                    (let ((host (alist-get 'host conn))
-                                          (port (alist-get 'port conn)))
-                                      ;; XXX: may need more tweaking
-                                      (when (or (string-equal host "localhost")
-                                              (string-equal host "127.0.0.1")
-                                              (string-equal host "::1"))
-                                        (when (= sc-port port)
-                                          (acrepl-connect conn)))))))))))
-                          ;; XXX: track relevant buffers for efficiency?
-                          (buffer-list)))))))
-          (let ((port (string-to-number
-                       (with-temp-buffer
-                         (insert-file-contents socket-repl-port-file)
-                         (buffer-string)))))
-            (when (> port 0)
-              (format "localhost:%s" port))))))))
 
 (defvar acrepl-conn-counter 0
   "Number of connections made so far.")

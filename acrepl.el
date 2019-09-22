@@ -173,8 +173,7 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
   (interactive
    (if (not (buffer-file-name)) ; XXX: loose
        (user-error "Please invoke when visiting a Clojure file")
-     (let ((endpoint (or (acrepl-guess-endpoint)
-                         acrepl-default-endpoint)))
+     (let ((endpoint acrepl-default-endpoint))
        (list
         (read-string (format "REPL endpoint (default '%s'): " endpoint)
                      endpoint nil endpoint)))))
