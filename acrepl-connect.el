@@ -99,9 +99,14 @@ Host and port should be delimited with ':'."
                     "[" (1+ digit) "]" ; port
                     eol)))
   (string-match re-rbn buffer-name)))
-  
-(defun acrepl-connect (conn-desc)
-  "Try to connect using CONN-DESC."
+
+;; XXX: think about retrying argument -- could package up
+;;      something that has number of retries, how many seconds,
+;;      until next retry, the lambda for run-at-time, etc.
+(defun acrepl-connect (conn-desc &optional sentinel retrying)
+  "Try to connect using CONN-DESC.
+Optional argument SENTINEL is a process sentinel.
+Optional argument RETRYING specifies whether retrying."
   (let* ((name (alist-get 'name conn-desc))
          (host (alist-get 'host conn-desc))
          (port (alist-get 'port conn-desc))
@@ -109,15 +114,30 @@ Host and port should be delimited with ':'."
          (repl-buffer-name (buffer-name repl-buffer))
          (repl-process-name repl-buffer-name))
     (message "Connecting to socket REPL on '%s:%d'..." host port)
-    (if (not (buffer-live-p repl-buffer))
-      (error "Buffer not alive? %S" name)
+    (when (not (buffer-live-p repl-buffer))
+      (error "Buffer not alive? %S" name))
+    (condition-case nil
       (let ((buffer (make-comint-in-buffer repl-process-name repl-buffer-name
                       (cons host port))))
-        (if (not buffer)
-          (error "Failed to connect to %s:%d"  host port)
-          buffer)))))
+        (when (not buffer)
+          (error "Failed to connect to %s:%d" host port))
+        (when sentinel
+          (let ((process (get-process repl-process-name)))
+            (when (not process)
+              (error "Failed to acquire repl process"))
+            (set-process-sentinel process sentinel)))
+        buffer)
+      (file-error ; handling connection refused
+        (when retrying
+          (run-at-time 3 nil
+            (lambda ()
+              (when (not repl-buffer)
+                (error "Repl-buffer is no longer: %S" repl-buffer))
+              (with-current-buffer repl-buffer
+                (acrepl-reconnect name sentinel retrying)))))
+        nil))))
 
-(defun acrepl-reconnect (name)
+(defun acrepl-reconnect (name &optional sentinel retrying)
   "Try to connect to connection named NAME.
 Tries to guess a reasonable default.
 If `acrepl-connection-name' is set, assumes current buffer is a file
@@ -125,7 +145,9 @@ with Clojure code, and uses the value of the variable as the default.
 Otherwise, if the current buffer name looks like an acrepl repl buffer
 name, uses that as a default.
 If neither of those things works out, just uses an empty string as the
-default."
+default.
+Optional argument SENTINEL should be a process sentinel.
+Optional argument RETRYING specifies whether retrying."
   (interactive
    (let* ((default (or acrepl-connection-name
                        (let ((buffer-name (buffer-name (current-buffer))))
@@ -142,7 +164,7 @@ default."
        (list input))))
   (let ((conn-desc (gethash name acrepl-connections)))
     (when conn-desc ; XXX: errors?
-      (acrepl-connect conn-desc))))
+      (acrepl-connect conn-desc sentinel retrying))))
 
 (provide 'acrepl-connect)
 
