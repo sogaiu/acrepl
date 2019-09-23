@@ -20,17 +20,26 @@
 (require 'acrepl-connect)
 (require 'acrepl-util)
 
+(require 'subr-x)
+
 (defvar acrepl-arcadia-auto-reconnect t
   "Attempt reconnection if disconnected from arcadia repl.")
 
+(defvar acrepl-arcadia-reconnect-wait 3
+  "Minimum number of seconds to wait before a retry.")
+
+(defvar acrepl-arcadia-reconnect-max-retries 10
+  "Maximum number of reconnection retries.")
+
 (defun acrepl-arcadia-find-dir ()
-  "Find arcadia directory with configuration.edn."
-  ;; XXX: as insurance, could check for sibling Arcadia directory
-  ;;      and/or Arcadia subdirectory
-  (let ((closest-dot-git-parent
-         (locate-dominating-file default-directory "Assets")))
-    (when closest-dot-git-parent
-      (let ((config-dir (concat closest-dot-git-parent
+  "Find arcadia directory with configuration.edn.
+Assuming search starts in a source file somewhere within a subdirectory
+of the Assets subdirectory of the unity project directory."
+  (when-let ((arcadia-parent
+               (locate-dominating-file default-directory "Arcadia")))
+    (when-let ((assets-parent
+                 (locate-dominating-file arcadia-parent "Assets")))
+      (let ((config-dir (concat assets-parent
                           "Assets/Arcadia")))
         (when (file-exists-p config-dir)
           config-dir)))))
@@ -46,19 +55,20 @@ PROCESS and EVENT are the usual arguments for sentinels."
          (conn-name repl-process-name)
          (repl-buffer (get-buffer repl-process-name)))
     ;; XXX: should probably check validity of bound values...
-    ;; XXX
-    (message "process: %S" process)
-    (message "event: %S" event)
     ;; XXX: os-dependent?
     (cond ((string-prefix-p "connection broken by remote peer" event)
-           (run-at-time 3 nil
+           (run-at-time acrepl-arcadia-reconnect-wait nil
              ;; XXX: should not just keep trying forever
              (lambda ()
                (when (not repl-buffer)
                  (error "Repl-buffer is no longer: %S" repl-buffer))
                (with-current-buffer repl-buffer
+                 (setq acrepl-arcadia-reconnect-try-number 1)
                  (acrepl-reconnect conn-name
-                   #'acrepl-arcadia-reconnect-sentinel 'retrying)))))
+                   #'acrepl-arcadia-reconnect-sentinel
+                   (list
+                     :max-tries acrepl-arcadia-reconnect-max-retries
+                     :wait acrepl-arcadia-reconnect-wait))))))
           ((string-prefix-p "deleted" event)
            (message "buffer likely gone: %S" buffer))
           (t
@@ -83,11 +93,11 @@ PROCESS and EVENT are the usual arguments for sentinels."
                          "/configuration.edn")))
       (let ((port 37220))
         (when (file-exists-p config-file)
-          (let ((endpoint-plist (acrepl-arcadia-endpoint-from-cfg
-                                  config-file)))
-            (when endpoint-plist
+          (let ((endpoint (acrepl-arcadia-endpoint-from-cfg
+                            config-file)))
+            (when (and endpoint (listp endpoint))
               ;; XXX: ignoring :address for now
-              (let ((port-from-file (plist-get endpoint-plist :port)))
+              (let ((port-from-file (plist-get endpoint :port)))
                 (when port-from-file
                   (setq port port-from-file))))))
         (let* ((host "localhost") ; XXX: ever be remote?

@@ -21,6 +21,9 @@ Host and port should be delimited with ':'."
 (defvar-local acrepl-connection-name nil
   "Current connection name.")
 
+(defvar-local acrepl-reconnect-try-number 0
+  "Current reconnect try number.")
+
 (defun acrepl-make-conn-desc (name host port path ts repl-buffer)
   "Create conn descriptor from NAME, HOST, PORT, PATH, TS, and REPL-BUFFER."
   (list
@@ -100,13 +103,32 @@ Host and port should be delimited with ':'."
                     eol)))
   (string-match re-rbn buffer-name)))
 
-;; XXX: think about retrying argument -- could package up
-;;      something that has number of retries, how many seconds,
-;;      until next retry, the lambda for run-at-time, etc.
-(defun acrepl-connect (conn-desc &optional sentinel retrying)
+(defun acrepl-arrange-retry (repl-buffer conn-name sentinel retry)
+  "May be arrange for a reconnection attempt for REPL-BUFFER.
+Try to reconnect with the connection associated with CONN-NAME,
+using SENTINEL, influenced by the description of RETRY.
+`acrepl-reconnect-try-number' is used to track number of connection attempts."
+  (let ((wait-secs (plist-get retry :wait))
+        (max-tries (plist-get retry :max-tries)))
+    (run-at-time wait-secs nil
+      (lambda ()
+        (when (not repl-buffer)
+          (error "Repl-buffer is no longer: %S" repl-buffer))
+        (with-current-buffer repl-buffer
+          (if (>= acrepl-reconnect-try-number max-tries)
+            (progn
+              (setq acrepl-reconnect-try-number 0)
+              (message "Giving up after %S attempts." max-tries))
+            ;; try again...
+            (setq acrepl-reconnect-try-number
+              (1+ acrepl-reconnect-try-number))
+            ;; XXX: why acrepl-reconnect and not acrepl-connect?
+            (acrepl-reconnect conn-name sentinel retry)))))))
+
+(defun acrepl-connect (conn-desc &optional sentinel retry)
   "Try to connect using CONN-DESC.
 Optional argument SENTINEL is a process sentinel.
-Optional argument RETRYING specifies whether retrying."
+Optional argument RETRY is a plist describing the retrying."
   (let* ((name (alist-get 'name conn-desc))
          (host (alist-get 'host conn-desc))
          (port (alist-get 'port conn-desc))
@@ -128,16 +150,11 @@ Optional argument RETRYING specifies whether retrying."
             (set-process-sentinel process sentinel)))
         buffer)
       (file-error ; handling connection refused
-        (when retrying
-          (run-at-time 3 nil
-            (lambda ()
-              (when (not repl-buffer)
-                (error "Repl-buffer is no longer: %S" repl-buffer))
-              (with-current-buffer repl-buffer
-                (acrepl-reconnect name sentinel retrying)))))
+        (when retry
+          (acrepl-arrange-retry repl-buffer name sentinel retry))
         nil))))
 
-(defun acrepl-reconnect (name &optional sentinel retrying)
+(defun acrepl-reconnect (name &optional sentinel retry)
   "Try to connect to connection named NAME.
 Tries to guess a reasonable default.
 If `acrepl-connection-name' is set, assumes current buffer is a file
@@ -147,7 +164,7 @@ name, uses that as a default.
 If neither of those things works out, just uses an empty string as the
 default.
 Optional argument SENTINEL should be a process sentinel.
-Optional argument RETRYING specifies whether retrying."
+Optional argument RETRY is a plist describing the retrying."
   (interactive
    (let* ((default (or acrepl-connection-name
                        (let ((buffer-name (buffer-name (current-buffer))))
@@ -164,7 +181,7 @@ Optional argument RETRYING specifies whether retrying."
        (list input))))
   (let ((conn-desc (gethash name acrepl-connections)))
     (when conn-desc ; XXX: errors?
-      (acrepl-connect conn-desc sentinel retrying))))
+      (acrepl-connect conn-desc sentinel retry))))
 
 (provide 'acrepl-connect)
 
