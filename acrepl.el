@@ -140,15 +140,6 @@
     (when conn
       (alist-get :repl-buffer conn)))) ; XXX: checking?
 
-;; XXX: better place for this?
-(defun acrepl-switch-to-repl ()
-  "Try to switch to a relevant repl buffer."
-  (interactive)
-  (let ((repl-buffer (acrepl-guess-repl-buffer)))
-    (if (not repl-buffer)
-        (error "Did not find repl buffer.  May be no connection?")
-      (pop-to-buffer repl-buffer))))
-
 (defvar acrepl-mode-map
   (let ((map (copy-keymap comint-mode-map)))
     map)
@@ -164,6 +155,15 @@
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
        '(clojure-font-lock-keywords t)))
+
+;; XXX: better place for this?
+(defun acrepl-switch-to-repl ()
+  "Try to switch to a relevant repl buffer."
+  (interactive)
+  (let ((repl-buffer (acrepl-guess-repl-buffer)))
+    (if (not repl-buffer)
+        (error "Did not find repl buffer.  May be no connection?")
+      (pop-to-buffer repl-buffer))))
 
 ;;;###autoload
 (defun acrepl (endpoint)

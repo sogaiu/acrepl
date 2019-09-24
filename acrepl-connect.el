@@ -80,21 +80,6 @@ Host and port should be delimited with ':'."
              acrepl-conn-table)
     names))
 
-(defun acrepl-set-current-conn (name)
-  "Set current connection to the one named NAME."
-  (interactive
-   (let ((input (completing-read "Connection: "
-                                 (acrepl-conn-names)
-                                 nil
-                                 "confirm")))
-     (if (equal input "")
-       (user-error "No connection specified")
-       (list input))))
-  (let ((conn (gethash name acrepl-conn-table)))
-    (when conn
-      (setq acrepl-current-conn-name name)
-      conn)))
-
 (defun acrepl-current-conn ()
   "Return current connection, if any."
   (acrepl-lookup-conn acrepl-current-conn-name))
@@ -182,6 +167,21 @@ Optional argument RETRY is a plist describing the retrying."
   (let ((conn-desc (gethash name acrepl-conn-table)))
     (when conn-desc ; XXX: errors?
       (acrepl-connect conn-desc sentinel retry))))
+
+(defun acrepl-set-current-conn (name)
+  "Set current connection to the one named NAME."
+  (interactive
+   (let ((input (completing-read "Connection: "
+                                 (acrepl-conn-names)
+                                 nil
+                                 "confirm")))
+     (if (equal input "")
+       (user-error "No connection specified")
+       (list input))))
+  (let ((conn (gethash name acrepl-conn-table)))
+    (when conn
+      (setq acrepl-current-conn-name name)
+      conn)))
 
 (provide 'acrepl-connect)
 
