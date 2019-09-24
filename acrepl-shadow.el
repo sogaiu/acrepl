@@ -56,6 +56,8 @@ Only handle FILE-BUFFER's reconnection though."
                      (expand-file-name port-file))
                 (equal action 'changed))
             (let ((port (acrepl-number-from-file file)))
+              (when (not (> port 0))
+                (error "Unexpected socket repl file content"))
               (when (not (buffer-live-p file-buffer))
                 (error "Missing buffer for: %s" file-buffer))
               (with-current-buffer file-buffer
@@ -83,7 +85,7 @@ Only handle FILE-BUFFER's reconnection though."
         (error "Socket repl port file for shadow-cljs not found"))
       (let ((port (acrepl-number-from-file port-file)))
         (when (not (> port 0))
-          (error "Port was not > 0"))
+          (error "Unexpected socket repl file content"))
         (let* ((host "localhost") ; XXX: ever be remote?
                (file-buffer (current-buffer))
                (file-path (buffer-file-name))
@@ -101,12 +103,15 @@ Only handle FILE-BUFFER's reconnection though."
               (when (not res-buffer)
                 (error "Failed to start acrepl"))
               (when acrepl-shadow-auto-reconnect
-                (acrepl-shadow-auto-reconnect-setup dot-dir file-buffer))
+                ;; XXX: if nil, indicate to user not successful?
+                (when (not (acrepl-shadow-auto-reconnect-setup dot-dir
+                             file-buffer))
+                  (message "Warning: failed to setup auto-reconnect."))
               (acrepl-remember-connection conn-name conn-desc)
               (acrepl-mode)
               (pop-to-buffer (current-buffer))
               (goto-char (point-max))
-              (pop-to-buffer file-buffer))))))))
+              (pop-to-buffer file-buffer)))))))))
   
 (provide 'acrepl-shadow)
 

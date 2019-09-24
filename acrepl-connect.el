@@ -81,17 +81,17 @@ Host and port should be delimited with ':'."
                                 "/"
                                 (group-n 2 (1+ (not (any "/")))) ; file
                                 eol)))
-    (if (not (string-match re-parent-and-file path))
-        (error "Failed to parse: %s" path)
-      ;; XXX: checking?
-      (let ((dir-name (match-string 1 path))
-            (file-name (match-string 2 path)))
-        (setq acrepl-conn-counter (1+ acrepl-conn-counter))
-        (format "[%s]*%s/%s*[%s]"
-                acrepl-conn-counter
-                (substring dir-name 0 (min 3 (length dir-name)))
-                file-name
-                port)))))
+    (when (not (string-match re-parent-and-file path))
+      (error "Failed to parse: %s" path))
+    ;; XXX: checking?
+    (let ((dir-name (match-string 1 path))
+          (file-name (match-string 2 path)))
+      (setq acrepl-conn-counter (1+ acrepl-conn-counter))
+      (format "[%s]*%s/%s*[%s]"
+        acrepl-conn-counter
+        (substring dir-name 0 (min 3 (length dir-name)))
+        file-name
+        port))))
 
 (defun acrepl-repl-buffer-name? (buffer-name)
   "Check if `acrepl-make-repl-buffer-name' could have made BUFFER-NAME."
