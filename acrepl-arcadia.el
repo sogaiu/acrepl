@@ -115,14 +115,14 @@ PROCESS and EVENT are the usual arguments for sentinels."
                  (acrepl-make-conn-desc conn-name host port file-path
                    (format-time-string "%Y-%m-%d_%H:%M:%S")
                    repl-buffer)))
-          (setq acrepl-connection-name conn-name)
+          (setq acrepl-current-conn-name conn-name)
           (with-current-buffer repl-buffer
             (let ((res-buffer (acrepl-connect conn-desc
                                 (when acrepl-arcadia-auto-reconnect
                                   #'acrepl-arcadia-reconnect-sentinel))))
               (when (not res-buffer)
                 (error "Failed to start acrepl"))
-              (acrepl-remember-connection conn-name conn-desc)
+              (acrepl-remember-conn conn-name conn-desc)
               (acrepl-mode)
               (pop-to-buffer (current-buffer))
               (goto-char (point-max))

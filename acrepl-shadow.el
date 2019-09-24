@@ -61,8 +61,8 @@ Only handle FILE-BUFFER's reconnection though."
               (when (not (buffer-live-p file-buffer))
                 (error "Missing buffer for: %s" file-buffer))
               (with-current-buffer file-buffer
-                (when-let ((conn-name acrepl-connection-name))
-                  (when-let ((conn (acrepl-get-connection conn-name)))
+                (when-let ((conn-name acrepl-current-conn-name))
+                  (when-let ((conn (acrepl-lookup-conn conn-name)))
                     (let ((host (alist-get :host conn))
                           (port (alist-get :port conn)))
                       ;; XXX: may need more tweaking
@@ -97,7 +97,7 @@ Only handle FILE-BUFFER's reconnection though."
                  (acrepl-make-conn-desc conn-name host port file-path
                    (format-time-string "%Y-%m-%d_%H:%M:%S")
                    repl-buffer)))
-          (setq acrepl-connection-name conn-name)
+          (setq acrepl-current-conn-name conn-name)
           (with-current-buffer repl-buffer
             (let ((res-buffer (acrepl-connect conn-desc)))
               (when (not res-buffer)
@@ -107,7 +107,7 @@ Only handle FILE-BUFFER's reconnection though."
                 (when (not (acrepl-shadow-auto-reconnect-setup dot-dir
                              file-buffer))
                   (message "Warning: failed to setup auto-reconnect."))
-              (acrepl-remember-connection conn-name conn-desc)
+              (acrepl-remember-conn conn-name conn-desc)
               (acrepl-mode)
               (pop-to-buffer (current-buffer))
               (goto-char (point-max))

@@ -14,63 +14,18 @@ Host and port should be delimited with ':'."
   :type 'string
   :group 'acrepl)
 
-(defvar acrepl-connections
+(defvar acrepl-conn-table
   (make-hash-table :test #'equal)
   "Hash table of acrepl connections.")
 
-(defvar-local acrepl-connection-name nil
+(defvar acrepl-conn-counter 0
+  "Number of connections made so far.")
+
+(defvar-local acrepl-current-conn-name nil
   "Current connection name.")
 
 (defvar-local acrepl-reconnect-try-number 0
   "Current reconnect try number.")
-
-(defun acrepl-make-conn-desc (name host port path ts repl-buffer)
-  "Create conn descriptor from NAME, HOST, PORT, PATH, TS, and REPL-BUFFER."
-  (list
-   (cons :name name)
-   (cons :host host)
-   (cons :port port)
-   (cons :path path)
-   (cons :ts ts)
-   (cons :repl-buffer repl-buffer)))
-
-(defun acrepl-get-connection (name)
-  "Get connection named NAME."
-  (gethash name acrepl-connections))
-
-(defun acrepl-connection-names ()
-  "Return list of connection names."
-  (let ((names '()))
-    (maphash (lambda (k _)
-               (push k names))
-             acrepl-connections)
-    names))
-
-(defun acrepl-set-connection (name)
-  "Set current connection to the one named NAME."
-  (interactive
-   (let ((input (completing-read "Connection: "
-                                 (acrepl-connection-names)
-                                 nil
-                                 "confirm")))
-     (if (equal input "")
-       (user-error "No connection specified")
-       (list input))))
-  (let ((conn (gethash name acrepl-connections)))
-    (when conn
-      (setq acrepl-connection-name name)
-      conn)))
-
-(defun acrepl-current-connection ()
-  "Return current connection, if any."
-  (acrepl-get-connection acrepl-connection-name))
-
-(defun acrepl-remember-connection (name connection)
-  "Remember CONNECTION named NAME."
-  (puthash name connection acrepl-connections))
-
-(defvar acrepl-conn-counter 0
-  "Number of connections made so far.")
 
 (defun acrepl-make-repl-buffer-name (path port)
   "Create a unique-ish repl buffer name using PATH, PORT and other info."
@@ -102,6 +57,51 @@ Host and port should be delimited with ':'."
                     "[" (1+ digit) "]" ; port
                     eol)))
   (string-match re-rbn buffer-name)))
+
+(defun acrepl-make-conn-desc (name host port path ts repl-buffer)
+  "Create conn descriptor from NAME, HOST, PORT, PATH, TS, and REPL-BUFFER."
+  (list
+   (cons :name name)
+   (cons :host host)
+   (cons :port port)
+   (cons :path path)
+   (cons :ts ts)
+   (cons :repl-buffer repl-buffer)))
+
+(defun acrepl-lookup-conn (name)
+  "Lookup connection named NAME."
+  (gethash name acrepl-conn-table))
+
+(defun acrepl-conn-names ()
+  "Return list of connection names."
+  (let ((names '()))
+    (maphash (lambda (k _)
+               (push k names))
+             acrepl-conn-table)
+    names))
+
+(defun acrepl-set-current-conn (name)
+  "Set current connection to the one named NAME."
+  (interactive
+   (let ((input (completing-read "Connection: "
+                                 (acrepl-conn-names)
+                                 nil
+                                 "confirm")))
+     (if (equal input "")
+       (user-error "No connection specified")
+       (list input))))
+  (let ((conn (gethash name acrepl-conn-table)))
+    (when conn
+      (setq acrepl-current-conn-name name)
+      conn)))
+
+(defun acrepl-current-conn ()
+  "Return current connection, if any."
+  (acrepl-lookup-conn acrepl-current-conn-name))
+
+(defun acrepl-remember-conn (name conn-desc)
+  "Remember CONN-DESC named NAME."
+  (puthash name conn-desc acrepl-conn-table))
 
 (defun acrepl-arrange-retry (repl-buffer conn-name sentinel retry)
   "May be arrange for a reconnection attempt for REPL-BUFFER.
@@ -157,7 +157,7 @@ Optional argument RETRY is a plist describing the retrying."
 (defun acrepl-reconnect (name &optional sentinel retry)
   "Try to connect to connection named NAME.
 Tries to guess a reasonable default.
-If `acrepl-connection-name' is set, assumes current buffer is a file
+If `acrepl-current-conn-name' is set, assumes current buffer is a file
 with Clojure code, and uses the value of the variable as the default.
 Otherwise, if the current buffer name looks like an acrepl repl buffer
 name, uses that as a default.
@@ -166,20 +166,20 @@ default.
 Optional argument SENTINEL should be a process sentinel.
 Optional argument RETRY is a plist describing the retrying."
   (interactive
-   (let* ((default (or acrepl-connection-name
+   (let* ((default (or acrepl-current-conn-name
                        (let ((buffer-name (buffer-name (current-buffer))))
                          (when (acrepl-repl-buffer-name? buffer-name)
                            buffer-name))
                        ""))
           (input (completing-read "Connection: "
-                                 (acrepl-connection-names)
+                                 (acrepl-conn-names)
                                  nil
                                  "confirm"
                                  default)))
      (if (equal input "")
        (user-error "No connection specified")
        (list input))))
-  (let ((conn-desc (gethash name acrepl-connections)))
+  (let ((conn-desc (gethash name acrepl-conn-table)))
     (when conn-desc ; XXX: errors?
       (acrepl-connect conn-desc sentinel retry))))
 

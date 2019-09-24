@@ -24,7 +24,7 @@ Influenced by `acrepl-interaction-menu-feature-level`."
     (define-key map "\C-c\C-e" 'acrepl-send-expr-at-point)
     (define-key map "\C-c\C-l" 'acrepl-load-buffer-file)
     (define-key map "\C-c\C-r" 'acrepl-send-region)
-    (define-key map "\C-c\C-x" 'acrepl-set-connection)
+    (define-key map "\C-c\C-x" 'acrepl-set-current-conn)
     (define-key map "\C-c\C-y" 'acrepl)
     (define-key map "\C-c\C-z" 'acrepl-switch-to-repl)
     (if (= 0 acrepl-interaction-menu-feature-level)
@@ -37,7 +37,7 @@ Influenced by `acrepl-interaction-menu-feature-level`."
             ["Load buffer file" acrepl-load-buffer-file t]
             "--"
             ["New Connection" acrepl t]
-            ["Set Connection" acrepl-set-connection t]
+            ["Set Connection" acrepl-set-current-conn t]
             ["Reconnect" acrepl-reconnect t]
             "--"
             ["Switch to REPL" acrepl-switch-to-repl t]))
@@ -61,7 +61,7 @@ Influenced by `acrepl-interaction-menu-feature-level`."
           ["Load file" acrepl-load-file t]
           "--"
           ["New Connection" acrepl t]
-          ["Set Connection" acrepl-set-connection t]
+          ["Set Connection" acrepl-set-current-conn t]
           "--"
           ["Switch to REPL" acrepl-switch-to-repl t])))
     map))

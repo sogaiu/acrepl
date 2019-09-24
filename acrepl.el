@@ -136,7 +136,7 @@
 ;; XXX: better place for this?
 (defun acrepl-guess-repl-buffer ()
   "Return a relevant repl buffer."
-  (let ((conn (acrepl-current-connection)))
+  (let ((conn (acrepl-current-conn)))
     (when conn
       (alist-get :repl-buffer conn)))) ; XXX: checking?
 
@@ -190,12 +190,12 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
           (acrepl-make-conn-desc conn-name host port file-path
                                  (format-time-string "%Y-%m-%d_%H:%M:%S")
                                  repl-buffer)))
-    (setq acrepl-connection-name conn-name)
+    (setq acrepl-current-conn-name conn-name)
     (with-current-buffer repl-buffer
       (let ((res-buffer (acrepl-connect conn-desc)))
         (if (not res-buffer)
             (error "Failed to start acrepl")
-          (acrepl-remember-connection conn-name conn-desc)
+          (acrepl-remember-conn conn-name conn-desc)
           (acrepl-mode)
           (pop-to-buffer (current-buffer))
           (goto-char (point-max))
