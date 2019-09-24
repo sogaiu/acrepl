@@ -26,16 +26,18 @@
 (defvar acrepl-shadow-auto-reconnect nil
   "Attempt reconnection if shadow-cljs restarts.")
 
-;;; XXX: git-specific
+(defun acrepl-shadow-cljs-project? ()
+  "Determine whether some containing directory is a shadow-cljs project."
+  (when-let ((closest-dir-with-sc-edn
+               (locate-dominating-file default-directory "shadow-cljs.edn")))
+    closest-dir-with-sc-edn))
+
 (defun acrepl-shadow-find-dot-dir ()
   "Find .shadow-cljs directory."
-  (let ((closest-dot-git-parent
-         (locate-dominating-file default-directory ".git")))
-    (when closest-dot-git-parent
-      (let ((dot-shadow-cljs-dir (concat closest-dot-git-parent
-                                   ".shadow-cljs")))
-        (when (file-exists-p dot-shadow-cljs-dir)
-          dot-shadow-cljs-dir)))))
+  (when-let ((shadow-project-dir (acrepl-shadow-cljs-project?)))
+    (let ((dot-shadow-cljs-dir (concat shadow-project-dir ".shadow-cljs")))
+      (when (file-exists-p dot-shadow-cljs-dir)
+        dot-shadow-cljs-dir))))
 
 (defun acrepl-shadow-auto-reconnect-setup (dot-dir file-buffer)
   "Arrange for auto-reconnect on shadow-cljs restart.

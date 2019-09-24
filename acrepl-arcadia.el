@@ -31,18 +31,22 @@
 (defvar acrepl-arcadia-reconnect-max-retries 10
   "Maximum number of reconnection retries.")
 
-(defun acrepl-arcadia-find-dir ()
-  "Find arcadia directory with configuration.edn.
-Assuming search starts in a source file somewhere within a subdirectory
-of the Assets subdirectory of the unity project directory."
+(defun acrepl-arcadia-project? ()
+  "Determine whether some containing directory is an arcadia project."
   (when-let ((arcadia-parent
                (locate-dominating-file default-directory "Arcadia")))
     (when-let ((assets-parent
                  (locate-dominating-file arcadia-parent "Assets")))
-      (let ((config-dir (concat assets-parent
-                          "Assets/Arcadia")))
-        (when (file-exists-p config-dir)
-          config-dir)))))
+      assets-parent)))
+
+(defun acrepl-arcadia-find-config-dir ()
+  "Find arcadia directory that should contain configuration.edn.
+Assuming search starts in a source file somewhere within a subdirectory
+of the Assets subdirectory of the unity project directory."
+  (when-let ((arcadia-project-dir (acrepl-arcadia-project?)))
+    (let ((config-dir (concat arcadia-project-dir "Assets/Arcadia")))
+      (when (file-exists-p config-dir)
+        config-dir))))
 
 ;; some typical events (w/ last newline removed):
 ;;
@@ -86,7 +90,7 @@ PROCESS and EVENT are the usual arguments for sentinels."
   (interactive)
   (when (not (buffer-file-name)) ; XXX: loose
     (user-error "Please invoke when visiting a Clojure file"))
-  (let ((config-dir (acrepl-arcadia-find-dir)))
+  (let ((config-dir (acrepl-arcadia-find-config-dir)))
     (when (not config-dir)
       (error "Failed to find Arcadia directory"))
     (let ((config-file (concat config-dir
