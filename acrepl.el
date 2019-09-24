@@ -133,6 +133,14 @@
   :type 'regexp
   :group 'acrepl)
 
+(defcustom acrepl-project-type-hook '()
+  "Functions to determine what type of project file is part of."
+  :type 'hook
+  :group 'acrepl)
+
+(defvar-local acrepl-project-types '()
+  "Plist of project types for source file buffer.")
+
 ;; XXX: better place for this?
 (defun acrepl-guess-repl-buffer ()
   "Return a relevant repl buffer."
@@ -166,17 +174,17 @@
       (pop-to-buffer repl-buffer))))
 
 ;;;###autoload
-(defun acrepl (endpoint)
+(defun acrepl-plain-connect (endpoint)
   "Start acrepl.
 Query user for ENDPOINT which specifies the Clojure socket REPL
 endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
   (interactive
    (if (not (buffer-file-name)) ; XXX: loose
        (user-error "Please invoke when visiting a Clojure file")
-     (let ((endpoint acrepl-default-endpoint))
-       (list
+    (let ((endpoint acrepl-default-endpoint))
+      (list
         (read-string (format "REPL endpoint (default '%s'): " endpoint)
-                     endpoint nil endpoint)))))
+          endpoint nil endpoint)))))
   (let* ((ep (split-string endpoint ":"))
          (host (car ep))
          (port (string-to-number (cadr ep)))
@@ -200,6 +208,36 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
           (pop-to-buffer (current-buffer))
           (goto-char (point-max))
           (pop-to-buffer file-buffer))))))
+
+;;;###autoload
+(defun acrepl ()
+  "Start acrepl.
+Try to automatically start acrepl accounting for project type."
+  (interactive)
+  (when (not (buffer-file-name)) ; XXX: loose
+    (user-error "Please invoke when visiting a Clojure file"))
+  (run-hooks 'acrepl-project-type-hook)
+  (let ((proj-types (thread-last acrepl-project-types
+                      (seq-map-indexed (lambda (elt idx)
+                                         (when (= (% idx 2) 0)
+                                           elt)))
+                      (seq-filter (lambda (item) item)))))
+    (cl-case (length proj-types)
+      (0 (call-interactively 'acrepl-plain-connect))
+      (1 (let* ((proj-type (car proj-types))
+                (connect (thread-first acrepl-project-types
+                           (plist-get proj-type)
+                           (plist-get :connect))))
+           (call-interactively (or connect 'acrepl-plain-connect))))
+      (t (let ((proj-type-str
+                (completing-read "Project type: " proj-types
+                  nil "confirm")))
+           (if (not proj-type-str)
+             (call-interactively 'acrepl-plain-connect)
+             (let ((connect (thread-first acrepl-project-types
+                              (plist-get (intern proj-type-str))
+                              (plist-get :connect))))
+               (call-interactively connect))))))))
 
 (provide 'acrepl)
 

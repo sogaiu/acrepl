@@ -12,6 +12,11 @@
 ;;    (setq acrepl-shadow-auto-reconnect t)
 ;;
 ;;    M-x acrepl-shadow-connect
+;;
+;;  For auto-detection of project for use with M-x acrepl, try:
+;;
+;;    (add-hook 'acrepl-project-type-hook
+;;              'acrepl-shadow-cljs-type-p)
 
 ;;; Code:
 
@@ -26,15 +31,25 @@
 (defvar acrepl-shadow-auto-reconnect nil
   "Attempt reconnection if shadow-cljs restarts.")
 
-(defun acrepl-shadow-cljs-project? ()
+(defun acrepl-shadow-cljs-project-p ()
   "Determine whether some containing directory is a shadow-cljs project."
   (when-let ((closest-dir-with-sc-edn
                (locate-dominating-file default-directory "shadow-cljs.edn")))
     closest-dir-with-sc-edn))
 
+(defun acrepl-shadow-cljs-type-p ()
+  "Record if current source file is part of a shadow-cljs project.
+One use would be via `add-hook' with `acrepl-project-type-hook'."
+  (when-let ((path (acrepl-shadow-cljs-project-p)))
+    (setq acrepl-project-types
+      (plist-put acrepl-project-types :shadow-cljs
+        (list
+          :path path
+          :connect #'acrepl-shadow-connect)))))
+
 (defun acrepl-shadow-find-dot-dir ()
   "Find .shadow-cljs directory."
-  (when-let ((shadow-project-dir (acrepl-shadow-cljs-project?)))
+  (when-let ((shadow-project-dir (acrepl-shadow-cljs-project-p)))
     (let ((dot-shadow-cljs-dir (concat shadow-project-dir ".shadow-cljs")))
       (when (file-exists-p dot-shadow-cljs-dir)
         dot-shadow-cljs-dir))))
@@ -106,12 +121,12 @@ Only handle FILE-BUFFER's reconnection though."
                 ;; XXX: if nil, indicate to user not successful?
                 (when (not (acrepl-shadow-auto-reconnect-setup dot-dir
                              file-buffer))
-                  (message "Warning: failed to setup auto-reconnect."))
+                  (message "Warning: failed to setup auto-reconnect.")))
               (acrepl-remember-conn conn-name conn-desc)
               (acrepl-mode)
               (pop-to-buffer (current-buffer))
               (goto-char (point-max))
-              (pop-to-buffer file-buffer)))))))))
+              (pop-to-buffer file-buffer))))))))
   
 (provide 'acrepl-shadow)
 

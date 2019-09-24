@@ -12,6 +12,11 @@
 ;;    (setq acrepl-arcadia-auto-reconnect nil)
 ;;
 ;;    M-x acrepl-arcadia-connect
+;;
+;;  For auto-detection of project for use with M-x acrepl, try:
+;;
+;;    (add-hook 'acrepl-project-type-hook
+;;              'acrepl-arcadia-type-p)
 
 ;;; Code:
 
@@ -31,7 +36,7 @@
 (defvar acrepl-arcadia-reconnect-max-retries 10
   "Maximum number of reconnection retries.")
 
-(defun acrepl-arcadia-project? ()
+(defun acrepl-arcadia-project-p ()
   "Determine whether some containing directory is an arcadia project."
   (when-let ((arcadia-parent
                (locate-dominating-file default-directory "Arcadia")))
@@ -39,11 +44,21 @@
                  (locate-dominating-file arcadia-parent "Assets")))
       assets-parent)))
 
+(defun acrepl-arcadia-type-p ()
+  "Record if current source file is part of a arcadia project.
+One use would be via `add-hook' with `acrepl-project-type-hook'."
+  (when-let ((path (acrepl-arcadia-project-p)))
+    (setq acrepl-project-types
+      (plist-put acrepl-project-types :arcadia
+        (list
+          :path path
+          :connect #'acrepl-arcadia-connect)))))
+
 (defun acrepl-arcadia-find-config-dir ()
   "Find arcadia directory that should contain configuration.edn.
 Assuming search starts in a source file somewhere within a subdirectory
 of the Assets subdirectory of the unity project directory."
-  (when-let ((arcadia-project-dir (acrepl-arcadia-project?)))
+  (when-let ((arcadia-project-dir (acrepl-arcadia-project-p)))
     (let ((config-dir (concat arcadia-project-dir "Assets/Arcadia")))
       (when (file-exists-p config-dir)
         config-dir))))
