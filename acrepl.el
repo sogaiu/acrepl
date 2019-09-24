@@ -138,7 +138,7 @@
   "Return a relevant repl buffer."
   (let ((conn (acrepl-current-connection)))
     (when conn
-      (alist-get 'repl-buffer conn)))) ; XXX: checking?
+      (alist-get :repl-buffer conn)))) ; XXX: checking?
 
 ;; XXX: better place for this?
 (defun acrepl-switch-to-repl ()

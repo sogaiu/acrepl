@@ -27,12 +27,12 @@ Host and port should be delimited with ':'."
 (defun acrepl-make-conn-desc (name host port path ts repl-buffer)
   "Create conn descriptor from NAME, HOST, PORT, PATH, TS, and REPL-BUFFER."
   (list
-   (cons 'name name)
-   (cons 'host host)
-   (cons 'port port)
-   (cons 'path path)
-   (cons 'ts ts)
-   (cons 'repl-buffer repl-buffer)))
+   (cons :name name)
+   (cons :host host)
+   (cons :port port)
+   (cons :path path)
+   (cons :ts ts)
+   (cons :repl-buffer repl-buffer)))
 
 (defun acrepl-get-connection (name)
   "Get connection named NAME."
@@ -41,7 +41,7 @@ Host and port should be delimited with ':'."
 (defun acrepl-connection-names ()
   "Return list of connection names."
   (let ((names '()))
-    (maphash (lambda (k v)
+    (maphash (lambda (k _)
                (push k names))
              acrepl-connections)
     names))
@@ -129,10 +129,10 @@ using SENTINEL, influenced by the description of RETRY.
   "Try to connect using CONN-DESC.
 Optional argument SENTINEL is a process sentinel.
 Optional argument RETRY is a plist describing the retrying."
-  (let* ((name (alist-get 'name conn-desc))
-         (host (alist-get 'host conn-desc))
-         (port (alist-get 'port conn-desc))
-         (repl-buffer (alist-get 'repl-buffer conn-desc))
+  (let* ((name (alist-get :name conn-desc))
+         (host (alist-get :host conn-desc))
+         (port (alist-get :port conn-desc))
+         (repl-buffer (alist-get :repl-buffer conn-desc))
          (repl-buffer-name (buffer-name repl-buffer))
          (repl-process-name repl-buffer-name))
     (message "Connecting to socket REPL on '%s:%d'..." host port)

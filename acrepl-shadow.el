@@ -21,6 +21,7 @@
 (require 'acrepl-util)
 
 (require 'filenotify)
+(require 'subr-x)
 
 (defvar acrepl-shadow-auto-reconnect nil
   "Attempt reconnection if shadow-cljs restarts.")
@@ -56,17 +57,15 @@ Only handle FILE-BUFFER's reconnection though."
               (when (not (buffer-live-p file-buffer))
                 (error "Missing buffer for: %s" file-buffer))
               (with-current-buffer file-buffer
-                (let ((conn-name acrepl-connection-name))
-                  (when conn-name
-                    (let ((conn (acrepl-get-connection conn-name)))
-                      (when conn
-                        (let ((host (alist-get 'host conn))
-                               (port (alist-get 'port conn)))
-                          ;; XXX: may need more tweaking
-                          (when (or (string-equal host "localhost")
-                                  (string-equal host "127.0.0.1")
-                                  (string-equal host "::1"))
-                            (acrepl-connect conn)))))))))))))))
+                (when-let ((conn-name acrepl-connection-name))
+                  (when-let ((conn (acrepl-get-connection conn-name)))
+                    (let ((host (alist-get :host conn))
+                          (port (alist-get :port conn)))
+                      ;; XXX: may need more tweaking
+                      (when (or (string-equal host "localhost")
+                              (string-equal host "127.0.0.1")
+                              (string-equal host "::1"))
+                        (acrepl-connect conn)))))))))))))
 
 (defun acrepl-shadow-connect ()
   "Start acrepl for a file in a shadow-cljs project."
