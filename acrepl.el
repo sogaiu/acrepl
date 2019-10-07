@@ -157,6 +157,19 @@
   "Major mode for acrepl.
 \\{acrepl-mode-map}"
   :syntax-table clojure-mode-syntax-table
+  ;; with font-lock enabled, at some point the following chain of calls
+  ;; can come about:
+  ;;
+  ;;   `font-lock-fontify-region'
+  ;;   ...
+  ;;   `clojure--looking-at-non-logical-sexp'
+  ;;   `comment-normalize-vars'
+  ;;
+  ;; the last of which has certain expectations regarding some comment-*
+  ;; variables, which if not met, can make life unpleasant in the minibuffer.
+  ;; thus:
+  (setq comment-start ";")
+  (setq comment-end "")
   (setq comint-prompt-regexp acrepl-prompt-regexp)
   (setq comint-prompt-read-only t)
   (setq mode-line-process '(":%s"))
