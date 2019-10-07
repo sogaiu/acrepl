@@ -39,12 +39,21 @@ CODE-STR should be a Clojure form."
   (interactive)
   (acrepl-send-region (point-min) (point-max)))
 
-(defun acrepl-send-expr-at-point ()
-  "Send expression at point."
-  (interactive)
+(defun acrepl-send-expr-at-point (&optional ignore-uneval)
+  "Send expression at point.
+Optional arg IGNORE-UNEVAL, if non-nil, does not send a leading uneval (#_)."
+  (interactive "P")
+  (message "ignore-uneval: %S" ignore-uneval)
   (cl-destructuring-bind (start end) (acrepl-detect-clojure-expr-bounds)
     (when (and start end)
-      (acrepl-send-region start end))))
+      (acrepl-send-region
+       (if (and ignore-uneval
+                (string-equal "#_"
+                              (buffer-substring-no-properties start
+                                                              (+ start 2))))
+           (+ 2 start)
+         start)
+       end))))
 
 (provide 'acrepl-send)
 
