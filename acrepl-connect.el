@@ -2,6 +2,16 @@
 
 ;;; Commentary:
 
+;;; Usage:
+;;
+;;  To perform some action automatically upon connection, define a hook
+;;  function and add it to `acrepl-conn-success-hook:
+;;
+;;    (add-hook 'acrepl-conn-success-hook
+;;              (lambda ()
+;;                (insert ":hi")
+;;                (comint-send-input)))
+
 ;;; Code:
 
 ;;;; Requirements
@@ -12,6 +22,11 @@
   "Default host and port to connect to.
 Host and port should be delimited with ':'."
   :type 'string
+  :group 'acrepl)
+
+(defcustom acrepl-conn-success-hook '()
+  "Functions to run upon successful connection."
+  :type 'hook
   :group 'acrepl)
 
 (defvar acrepl-conn-table
@@ -120,24 +135,28 @@ Optional argument RETRY is a plist describing the retrying."
          (repl-buffer (alist-get :repl-buffer conn-desc))
          (repl-buffer-name (buffer-name repl-buffer))
          (repl-process-name repl-buffer-name))
-    (message "Connecting to socket REPL on '%s:%d'..." host port)
-    (when (not (buffer-live-p repl-buffer))
-      (error "Buffer not alive? %S" name))
-    (condition-case nil
-      (let ((buffer (make-comint-in-buffer repl-process-name repl-buffer-name
-                      (cons host port))))
-        (when (not buffer)
-          (error "Failed to connect to %s:%d" host port))
-        (when sentinel
-          (let ((process (get-process repl-process-name)))
-            (when (not process)
-              (error "Failed to acquire repl process"))
-            (set-process-sentinel process sentinel)))
-        buffer)
-      (file-error ; handling connection refused
-        (when retry
-          (acrepl-arrange-retry repl-buffer name sentinel retry))
-        nil))))
+    (with-temp-message (format "Connecting to socket REPL on '%s:%d'..."
+                               host port)
+      (when (not (buffer-live-p repl-buffer))
+        (error "Buffer not alive? %S" name))
+      (condition-case nil
+          (let ((buffer (make-comint-in-buffer repl-process-name
+                                               repl-buffer-name
+                                               (cons host port))))
+            (when (not buffer)
+              (error "Failed to connect to %s:%d" host port))
+            (when sentinel
+              (let ((process (get-process repl-process-name)))
+                (when (not process)
+                  (error "Failed to acquire repl process"))
+                (set-process-sentinel process sentinel)))
+            (with-current-buffer repl-buffer
+              (run-hooks 'acrepl-conn-success-hook))
+            buffer)
+        (file-error ; handling connection refused
+         (when retry
+           (acrepl-arrange-retry repl-buffer name sentinel retry))
+         nil)))))
 
 (defun acrepl-reconnect (name &optional sentinel retry)
   "Try to connect to connection named NAME.
