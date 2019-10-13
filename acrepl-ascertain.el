@@ -7,6 +7,7 @@
 ;;;; Requirements
 
 (require 'acrepl-bounds)
+(require 'acrepl-send)
 
 (defvar acrepl-ascertain-forms
   (list 'def

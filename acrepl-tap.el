@@ -6,6 +6,8 @@
 
 ;;;; Requirements
 
+(require 'acrepl-send)
+
 (defun acrepl-tap-region (start end)
   "Apply tap> to a region bounded by START and END."
   (interactive "r")
