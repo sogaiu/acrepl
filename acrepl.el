@@ -135,6 +135,11 @@
   :type 'hook
   :group 'acrepl)
 
+(defcustom acrepl-display-last-output-hook '()
+  "Functions to invoke during `acrepl-display-last-output-hook'."
+  :type 'hook
+  :group 'acrepl)
+
 (defvar-local acrepl-project-types '()
   "Plist of project types for source file buffer.")
 

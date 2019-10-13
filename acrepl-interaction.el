@@ -7,6 +7,7 @@
 ;;;; Requirements
 
 (require 'acrepl-ascertain)
+(require 'acrepl-display)
 (require 'acrepl-load)
 (require 'acrepl-send)
 (require 'acrepl-switch)
@@ -46,7 +47,11 @@
          ["tap> expression at point" acrepl-tap-expr-at-point t]
          ["tap> region" acrepl-tap-region t]
          "--"
-         ["Load file" acrepl-load-file t])))
+         ["Load file" acrepl-load-file t]
+         "--"
+         ["Last output in window" acrepl-last-output-in-window t]
+         ["Last output in other window" acrepl-last-output-in-other-window t]
+         ["Last output in frame" acrepl-last-output-in-frame t])))
     map)
   "Keymap for acrepl interaction mode.")
 
