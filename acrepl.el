@@ -63,14 +63,6 @@
 ;;    There should be a ACRepl menu containing some convenience
 ;;    commands related to sending to the repl, loading files, etc.
 ;;
-;;    How featureful this ends up being can be controlled via:
-;;
-;;      (setq acrepl-interaction-menu-feature-level 0) ; default, simple
-;;
-;;    or:
-;;
-;;      (setq acrepl-interaction-menu-feature-level 1) ; gimme moar!
-;;
 ;;    N.B. (require 'acrepl-interaction) is necessary.
 
 ;;;;; Acknowledgments
