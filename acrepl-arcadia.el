@@ -23,6 +23,7 @@
 ;;;; Requirements
 
 (require 'acrepl-connect)
+(require 'acrepl-state)
 (require 'acrepl-util)
 
 (require 'subr-x)
@@ -125,23 +126,22 @@ PROCESS and EVENT are the usual arguments for sentinels."
                (repl-buffer (get-buffer-create
                               (acrepl-make-repl-buffer-name file-path port)))
                (repl-buffer-name (buffer-name repl-buffer))
-               (conn-name repl-buffer-name)
-               (conn-desc
-                 (acrepl-make-conn-desc conn-name host port file-path
-                   (format-time-string "%Y-%m-%d_%H:%M:%S")
-                   repl-buffer)))
-          (setq acrepl-current-conn-name conn-name)
+               (conn-name repl-buffer-name))
+          ;; need this before acrepl-connect can work
+          (acrepl-set-endpoint! conn-name host port)
           (with-current-buffer repl-buffer
-            (let ((res-buffer (acrepl-connect conn-desc
+            (let ((res-buffer (acrepl-connect conn-name
                                 (when acrepl-arcadia-auto-reconnect
                                   #'acrepl-arcadia-reconnect-sentinel))))
-              (when (not res-buffer)
-                (error "Failed to start acrepl"))
-              (acrepl-remember-conn conn-name conn-desc)
+              (if (not res-buffer)
+                  (progn
+                    (acrepl-remove-endpoint! conn-name) ; XXX: failed, remove?
+                    (error "Failed to start acrepl"))
+              (acrepl-update-conn-path! conn-name file-path)
               (acrepl-mode)
               (pop-to-buffer (current-buffer))
               (goto-char (point-max))
-              (pop-to-buffer file-buffer))))))))
+              (pop-to-buffer file-buffer)))))))))
   
 (provide 'acrepl-arcadia)
 

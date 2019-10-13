@@ -168,42 +168,6 @@
        '(clojure-font-lock-keywords t)))
 
 ;;;###autoload
-(defun acrepl-plain-connect (endpoint)
-  "Start acrepl.
-Query user for ENDPOINT which specifies the Clojure socket REPL
-endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
-  (interactive
-   (if (not (buffer-file-name)) ; XXX: loose
-       (user-error "Please invoke when visiting a Clojure file")
-    (let ((endpoint acrepl-default-endpoint))
-      (list
-        (read-string (format "REPL endpoint (default '%s'): " endpoint)
-          endpoint nil endpoint)))))
-  (let* ((ep (split-string endpoint ":"))
-         (host (car ep))
-         (port (string-to-number (cadr ep)))
-         (file-buffer (current-buffer))
-         (file-path (buffer-file-name))
-         (repl-buffer (get-buffer-create
-                       (acrepl-make-repl-buffer-name file-path port)))
-         (repl-buffer-name (buffer-name repl-buffer))
-         (conn-name repl-buffer-name)
-         (conn-desc
-          (acrepl-make-conn-desc conn-name host port file-path
-                                 (format-time-string "%Y-%m-%d_%H:%M:%S")
-                                 repl-buffer)))
-    (setq acrepl-current-conn-name conn-name)
-    (with-current-buffer repl-buffer
-      (let ((res-buffer (acrepl-connect conn-desc)))
-        (if (not res-buffer)
-            (error "Failed to start acrepl")
-          (acrepl-remember-conn conn-name conn-desc)
-          (acrepl-mode)
-          (pop-to-buffer (current-buffer))
-          (goto-char (point-max))
-          (pop-to-buffer file-buffer))))))
-
-;;;###autoload
 (defun acrepl ()
   "Start acrepl.
 Try to automatically start acrepl accounting for project type."
