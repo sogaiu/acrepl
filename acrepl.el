@@ -136,7 +136,7 @@
   :group 'acrepl)
 
 (defcustom acrepl-display-last-output-hook '()
-  "Functions to invoke during `acrepl-display-last-output-hook'."
+  "Functions to invoke during `acrepl-display-last-output-wrapper'."
   :type 'hook
   :group 'acrepl)
 
