@@ -7,6 +7,7 @@
 ;;;; Requirements
 
 (require 'acrepl-bounds)
+(require 'acrepl-guess)
 
 (require 'comint)
 

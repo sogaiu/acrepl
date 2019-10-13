@@ -9,6 +9,7 @@
 (require 'acrepl-ascertain)
 (require 'acrepl-load)
 (require 'acrepl-send)
+(require 'acrepl-switch)
 (require 'acrepl-tap)
 
 (defvar acrepl-interaction-mode-map
