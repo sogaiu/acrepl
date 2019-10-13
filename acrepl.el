@@ -99,6 +99,7 @@
 ;;;; Requirements
 
 (require 'acrepl-connect)
+(require 'acrepl-state)
 
 (require 'clojure-mode)
 (require 'comint)
@@ -168,9 +169,16 @@
   (setq comint-prompt-regexp acrepl-prompt-regexp)
   (setq comint-prompt-read-only t)
   (setq mode-line-process '(":%s"))
+  ;; XXX: any way to remove hook when no longer needed?
+  ;; XXX: does use of local arg (see `add-hook' doc) seem useful?
+  (add-hook 'kill-buffer-hook
+            #'acrepl-prune-stale-conn-info
+            nil 'local)
   ;; XXX: can use setq-local instead?
   (set (make-local-variable 'font-lock-defaults)
-       '(clojure-font-lock-keywords t)))
+       '(clojure-font-lock-keywords t))
+  ;; XXX: provide a mode-specific hook?
+  )
 
 ;;;###autoload
 (defun acrepl ()

@@ -167,29 +167,6 @@ endpoint.  ENDPOINT is a string of the form: \"hostname:port\"."
           (goto-char (point-max))
           (pop-to-buffer file-buffer))))))
 
-;; XXX: check and consider renaming
-(defun acrepl-prune-stale-conn-info ()
-  "Attempt to perform clean up for stale conn info.
-This is meant to be used from `kill-buffer-hook' in the context
-of a repl buffer being killed."
-  ;; process only if current buffer is an acrepl repl buffer
-  (let ((buffer-name (buffer-name (current-buffer))))
-    (when (acrepl-repl-buffer-name? buffer-name)
-      (let ((conn-name buffer-name))
-        (acrepl-remove-endpoint! conn-name)
-        (let ((paths (acrepl-get-conn-users conn-name)))
-          ;; XXX: put in acrepl-state.el?
-          (mapc (lambda (path)
-                  (acrepl-remove-conn! path))
-                paths)
-          (acrepl-clear-conn-users! conn-name))))))
-
-;; XXX
-;;(add-hook 'kill-buffer-hook
-;;          #'acrepl-prune-stale-conn-info)
-
-;; XXX: any way to remove hook when no longer needed?
-
 (provide 'acrepl-connect)
 
 ;;; acrepl-connect.el ends here
