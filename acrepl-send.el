@@ -44,7 +44,6 @@ CODE-STR should be a Clojure form."
   "Send expression at point.
 Optional arg IGNORE-UNEVAL, if non-nil, does not send a leading uneval (#_)."
   (interactive "P")
-  (message "ignore-uneval: %S" ignore-uneval)
   (cl-destructuring-bind (start end) (acrepl-detect-clojure-expr-bounds)
     (when (and start end)
       (acrepl-send-region
