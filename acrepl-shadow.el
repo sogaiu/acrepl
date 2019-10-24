@@ -43,7 +43,8 @@
 
 (defun acrepl-shadow-cljs-dir (code-path)
   "Determine shadow-cljs directory for CODE-PATH."
-  (file-truename (locate-dominating-file code-path "shadow-cljs.edn")))
+  (when-let ((guess-path (locate-dominating-file code-path "shadow-cljs.edn")))
+    (file-truename guess-path)))
 
 (defun acrepl-shadow-cljs-project-p ()
   "Determine whether some containing directory is a shadow-cljs project."
