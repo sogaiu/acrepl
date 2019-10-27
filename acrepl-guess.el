@@ -22,7 +22,7 @@ If current buffer is a repl-buffer, return that.
 Otherwise, if current buffer is a code buffer, try to find an associated
 repl-buffer.
 Otherwise, return nil."
-  (let (repl-buffer (acrepl-guess-helper))
+  (let ((repl-buffer (acrepl-guess-helper)))
     (when (not repl-buffer)
       (with-temp-message
           "Did not find repl buffer.  Looking for alternative..."
