@@ -11,11 +11,13 @@
 
 (defun acrepl-detect-clojure-expr-bounds ()
   "Return the bounds of the Clojure sexp at point."
-  (let ((here (point)))
+  (let ((here (point))
+        (right-of-delim-p (looking-back "[)}]][[:blank:]]*" nil)))
     (backward-sexp)
-    (let ((start (if (looking-back "\\(#[^#)]*\\)")
+    (let ((start (if (and right-of-delim-p
+                          (looking-back "\\(#[^#)]*\\)" nil))
                      (match-beginning 1)
-                   (point))))
+                     (point))))
       (forward-sexp)
       (let ((end (point)))
         (goto-char here)
