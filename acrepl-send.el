@@ -11,6 +11,17 @@
 
 (require 'comint)
 
+(defun acrepl-send-to-repl-buffer (code-str repl-buffer)
+  "Send CODE-STR to REPL-BUFFER."
+  (let ((original-buffer (current-buffer)))
+    (save-excursion
+      (with-current-buffer repl-buffer
+        (goto-char (point-max))
+        (insert code-str)
+        (comint-send-input)))
+    (when (eq original-buffer repl-buffer)
+      (goto-char (point-max)))))
+
 (defun acrepl-send-code (code-str)
   "Send CODE-STR.
 CODE-STR should be a Clojure form."
@@ -18,17 +29,7 @@ CODE-STR should be a Clojure form."
   (let ((repl-buffer (acrepl-guess-repl-buffer)))
     (if (not repl-buffer)
         (error "Did not find repl buffer.  May be no connection?")
-      (let ((here (point))
-            (original-buffer (current-buffer)))
-        ;; switch to acrepl buffer to prepare for appending
-        (set-buffer repl-buffer)
-        (goto-char (point-max))
-        (insert code-str)
-        (comint-send-input)
-        (set-buffer original-buffer)
-        (if (eq original-buffer repl-buffer)
-            (goto-char (point-max))
-          (goto-char here))))))
+      (acrepl-send-to-repl-buffer code-str repl-buffer))))
 
 (defun acrepl-send-region (start end)
   "Send a region bounded by START and END."
