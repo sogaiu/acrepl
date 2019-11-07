@@ -8,7 +8,7 @@
 
 (require 'acrepl-send)
 
-(defun acrepl-start-rebl ()
+(defun acrepl-rebl-start ()
   "Start a REBL UI."
   (interactive "")
   (acrepl-send-code
